@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AlphaIM - 登录</title>
+    <style>
+        :root {
+            background-image: url(https://api.paugram.com/bing/);
+            background-size: cover;
+        }
+
+        .container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: white;
+        }
+
+        .card {
+            padding: 16px;
+            background-color: rgba(0, 0, 0, 0.75);
+        }
+
+        .card-title {
+            font-size: 24px;
+            font-weight: bold;
+            display: block;
+        }
+
+        form {
+            display: block;
+        }
+        input {
+            display: block;
+            width: 224px;
+        }
+        .btn-submit {
+            margin-top: 8px;
+            float: right;
+            padding-left: 4px;
+            padding-right: 4px;
+        }
+        .btn-register {
+            margin-top: 8px;
+            float: left;
+            padding-left: 4px;
+            padding-right: 4px;
+        }
+        .error-message {
+            color: #ff6b6b;
+            font-size: 14px;
+            margin-top: 10px;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="card-title">登录</div>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="username">用户名</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">密码</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <div class="error-message" id="errorMessage"></div>
+                <button type="submit" class="btn-submit">登录</button>
+                <button class="btn-register" onclick="window.location.href='/register'">注册</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            // 发送登录请求
+            fetch('/api/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ username, password }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 登录成功，重定向到主页
+                    window.location.href = './';
+                } else {
+                    // 显示错误信息
+                    const errorMessage = document.getElementById('errorMessage');
+                    errorMessage.textContent = data.message || '登录失败，请检查用户名和密码';
+                    errorMessage.style.display = 'block';
+                }
+            })
+            .catch(error => {
+                console.error('登录请求失败:', error);
+                const errorMessage = document.getElementById('errorMessage');
+                errorMessage.textContent = '登录请求失败，请稍后再试';
+                errorMessage.style.display = 'block';
+            });
+        });
+    </script>
+</body>
+
+</html>
