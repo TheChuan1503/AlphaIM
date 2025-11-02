@@ -18,7 +18,8 @@ const WS_PORT = process.env.WS_PORT || 3001;
 // 数据库初始化
 const db = {
     users: new Datastore({ filename: './db/users.db', autoload: true }),
-    userData: new Datastore({ filename: './db/user_data.db', autoload: true })
+    userData: new Datastore({ filename: './db/user_data.db', autoload: true }),
+    chatHistory: new Datastore({ filename: './db/chat_history.db', autoload: true })
 };
 
 // 存储验证码的会话数据
@@ -33,6 +34,13 @@ app.use((req, res, next) => {
         return next();
     }
     express.static(path.join(__dirname, 'public'))(req, res, next);
+});
+app.use((req, res, next) => {
+    if (req.path.endsWith('.db')) {
+        console.log("WARNING " + req.ip + " tried to access database file " + req.path);
+        return
+    }
+    next();
 });
 
 const authMiddleware = (req, res, next) => {
@@ -64,7 +72,12 @@ app.get('/', (req, res) => {
 
     authUtil.getAuthFromToken(db.users, token, (success, user, error) => {
         if (success && user) {
-            res.sendFile(path.join(__dirname, 'public', 'main_desktop.html'));
+            // 根据用户代理判断设备类型
+            const userAgent = req.headers['user-agent'] || '';
+            const isMobile = /mobile|android|iphone|ipad|phone/i.test(userAgent);
+            
+            const htmlFile = isMobile ? 'main_mobile.html' : 'main_desktop.html';
+            res.sendFile(path.join(__dirname, 'public', htmlFile));
         } else {
             res.redirect('/login');
         }
@@ -79,11 +92,21 @@ app.get('/login', (req, res) => {
             if (success && user) {
                 return res.redirect('/');
             } else {
-                res.sendFile(path.join(__dirname, 'public', 'login_desktop.html'));
+                // 根据用户代理判断设备类型
+                const userAgent = req.headers['user-agent'] || '';
+                const isMobile = /mobile|android|iphone|ipad|phone/i.test(userAgent);
+                
+                const htmlFile = isMobile ? 'login_mobile.html' : 'login_desktop.html';
+                res.sendFile(path.join(__dirname, 'public', htmlFile));
             }
         });
     } else {
-        res.sendFile(path.join(__dirname, 'public', 'login_desktop.html'));
+        // 根据用户代理判断设备类型
+        const userAgent = req.headers['user-agent'] || '';
+        const isMobile = /mobile|android|iphone|ipad|phone/i.test(userAgent);
+        
+        const htmlFile = isMobile ? 'login_mobile.html' : 'login_desktop.html';
+        res.sendFile(path.join(__dirname, 'public', htmlFile));
     }
 });
 
@@ -95,10 +118,22 @@ app.get('/register', (req, res) => {
             if (success && user) {
                 return res.redirect('/');
             } else {
-                res.sendFile(path.join(__dirname, 'public', 'register_desktop.html'));
+                // 根据用户代理判断设备类型
+                const userAgent = req.headers['user-agent'] || '';
+                const isMobile = /mobile|android|iphone|ipad|phone/i.test(userAgent);
+                
+                const htmlFile = isMobile ? 'register_mobile.html' : 'register_desktop.html';
+                res.sendFile(path.join(__dirname, 'public', htmlFile));
             }
         });
-    } else res.sendFile(path.join(__dirname, 'public', 'register_desktop.html'));
+    } else {
+        // 根据用户代理判断设备类型
+        const userAgent = req.headers['user-agent'] || '';
+        const isMobile = /mobile|android|iphone|ipad|phone/i.test(userAgent);
+        
+        const htmlFile = isMobile ? 'register_mobile.html' : 'register_desktop.html';
+        res.sendFile(path.join(__dirname, 'public', htmlFile));
+    }
 });
 
 app.get('/api/captcha', (req, res) => {
@@ -206,7 +241,7 @@ app.get('/api/user', authMiddleware, (req, res) => {
                     uid: req.user.uid,
                     username: req.user.username,
                     nickname: req.userData.nickname,
-                    joinedSessions: user.joinedSessions,
+                    joined_sessions: req.userData.joinedSessions,
                 }
             });
         } else {
@@ -224,39 +259,58 @@ app.get('/api/get_avatar', (req, res) => {
     const name = req.query.name || 'U';
     const size = 128;
 
-    // 根据名称生成颜色（排除暗色调）
-    const hash = name.split('').reduce((acc, char) => char.charCodeAt(0) + ((acc << 5) - acc), 0);
-    const hue = Math.abs(hash) % 360;
-    const saturation = 70 + Math.abs(hash % 30); // 70-100%
-    const lightness = 50 + Math.abs(hash % 30);  // 50-80% (避免太暗)
+    const generateAvatar = (displayName, colorSeed) => {
+        const hash = colorSeed.split('').reduce((acc, char) => char.charCodeAt(0) + ((acc << 5) - acc), 0);
+        const hue = Math.abs(hash) % 360;
+        const saturation = 70 + Math.abs(hash % 30);
+        const lightness = 50 + Math.abs(hash % 30);
 
-    // 获取首字母并大写
-    const firstLetter = name.charAt(0).toUpperCase();
+        const firstLetter = displayName.charAt(0).toUpperCase();
 
-    // 根据亮度自动选择文字颜色（YIQ算法）
-    const isLight = (lightness > 60) ||
-        (lightness > 50 && saturation < 30);
-    const textColor = isLight ? '#000000' : '#FFFFFF';
+        const isLight = (lightness > 60) || (lightness > 50 && saturation < 30);
+        const textColor = isLight ? '#000000' : '#FFFFFF';
 
-    // 生成SVG
-    const svg = `
-        <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
-            <rect width="${size}" height="${size}" fill="hsl(${hue}, ${saturation}%, ${lightness}%)"/>
-            <text x="50%" y="55%" 
-                  font-family="Arial" 
-                  font-size="${size * 0.5}" 
-                  font-weight="bold" 
-                  fill="${textColor}"
-                  text-anchor="middle" 
-                  dominant-baseline="middle">
-                ${firstLetter}
-            </text>
-        </svg>
-    `;
+        const svg = `
+            <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
+                <rect width="${size}" height="${size}" fill="hsl(${hue}, ${saturation}%, ${lightness}%)"/>
+                <text x="50%" y="55%" 
+                      font-family="Arial" 
+                      font-size="${size * 0.5}" 
+                      font-weight="bold" 
+                      fill="${textColor}"
+                      text-anchor="middle" 
+                      dominant-baseline="middle">
+                    ${firstLetter}
+                </text>
+            </svg>
+        `;
 
-    // 返回SVG
-    res.set('Content-Type', 'image/svg+xml');
-    res.send(svg);
+        res.set('Content-Type', 'image/svg+xml');
+        res.send(svg);
+    };
+
+    if (name.includes(':')) {
+        const [type, value] = name.split(':');
+        if (type === 'user' || type === 'chat') {
+            userUtil.getUserByUsername(db.users, db.userData, value, (user) => {
+                if (user) {
+                    generateAvatar(user.nickname, `${user.nickname}/${user.auth.username}`);
+                } else {
+                    generateAvatar(value, value);
+                }
+            });
+        } else {
+            generateAvatar(name, name);
+        }
+    } else {
+        userUtil.getUserByUsername(db.users, db.userData, name, (user) => {
+            if (user) {
+                generateAvatar(user.nickname, `${user.nickname}/${user.auth.username}`);
+            } else {
+                generateAvatar(name, name);
+            }
+        });
+    }
 });
 
 app.get('/api/user_public_info', (req, res) => {
@@ -265,7 +319,7 @@ app.get('/api/user_public_info', (req, res) => {
         return res.status(400).json({ success: false, message: 'User not found' });
     }
     userUtil.getUserByUid(db.users, db.userData, uid, (user) => {
-        console.log(user)
+        // console.log(user)
         if (user) {
             res.json({
                 success: true,

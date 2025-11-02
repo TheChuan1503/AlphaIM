@@ -6,7 +6,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AlphaIM</title>
     <script src="./libs/jq.js"></script>
+    <script src="./libs/jq-color.js"></script>
     <style>
+        :root,
+        html,
+        body {
+            padding: 0;
+            margin: 0;
+            background-color: #111111;
+        }
+
         .container {
             display: fixed;
             width: 100%;
@@ -18,7 +27,7 @@
         .layout-left {
             left: 0;
             width: 64px;
-            background-color: #191919;
+            background-color: rgba(25, 25, 25, 0.8);
         }
 
         body {
@@ -40,13 +49,13 @@
         }
 
         .layout-middle {
-            width: 240px;
+            right: 0px;
             left: 64px;
-            background-color: #1B1B1B;
+            background-color: rgba(27, 27, 27, 0.4);
         }
 
         .layout {
-            position: fixed;
+            position: absolute;
             top: 0;
             height: 100%;
         }
@@ -54,12 +63,16 @@
         * {
             color: #fff;
             font-family: 'Noto Sans', sans-serif;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .layout-right {
-            left: 304px;
+            left: 0px;
             right: 0;
             background-color: #111111;
+            filter: blur(0px);
+            transition: filter 0.2s ease-in-out;
         }
 
         .session-card {
@@ -156,6 +169,7 @@
             white-space: pre-wrap;
             line-height: 1.4;
             overflow-wrap: break-word;
+            user-select: text;
         }
 
         .layout-right .mask {
@@ -165,9 +179,6 @@
             width: 100%;
             height: 100%;
             background-color: #111111;
-            display: flex;
-            justify-content: center;
-            align-items: center;
         }
 
         .layout-left-bottom {
@@ -246,9 +257,14 @@
             border-radius: 16%;
             position: absolute;
             top: 8px;
-            right: 8px;
             background-color: transparent;
             border: none;
+            padding: 4px;
+        }
+
+        .session-list-header .btn .img {
+            width: 100%;
+            height: 100%;
         }
 
         .session-list-header .btn:hover {
@@ -274,44 +290,117 @@
             background-color: rgba(255, 255, 255, 0.08);
         }
 
+        .drawer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            background-color: rgba(0, 0, 0, 0);
+            z-index: 50;
+        }
+
+        .drawer-container {
+            position: absolute;
+            top: 0;
+            left: -100%;
+            height: 100%;
+            width: 100%;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        .btn-close-drawer {
+            right: 8px;
+        }
+
+        .btn-join-session {
+            right: 48px;
+        }
+
+        .mask div {
+            display: block;
+        }
+
+        .mask-logo {
+            width: 100vw;
+            margin-top: 42vh;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+
+        .mask-text {
+            width: 100vw;
+            text-align: center;
+        }
+
+        .chat-area-header .btn-open-drawer {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            height: 32px;
+            width: 32px;
+            padding: 4px;
+            box-sizing: border-box;
+            cursor: pointer;
+        }
+
+        .chat-area-header .session-name {
+            position: absolute;
+            top: 8px;
+            left: 48px;
+            height: 32px;
+            line-height: 32px;
+            font-size: 16px;
+        }
+
+        .layout-right.blured {
+            filter: blur(3px);
+        }
+
         .session-list {
             overflow-y: auto;
             overflow-x: hidden;
             width: calc(100%);
             height: calc(100% - 48px);
         }
-
-        .session-list::-webkit-scrollbar {
-            width: 0px;
-            background: transparent;
-        }
     </style>
 </head>
 
 <body>
     <div class="container">
-        <div class="layout-left layout">
-            <img src="/assets/logo.svg" alt="logo" width="64" height="64" style="padding: 8px;box-sizing: border-box;">
-            <img class="avatar my-avatar">
-            <div class="layout-left-bottom">
-                <img src="./assets/icons/logout.svg" class="btn btn-logout" title="Logout">
-            </div>
-        </div>
-        <div class="layout-middle layout">
-            <div class="session-list-header">
-                <div class="session-list-title">Sessions</div>
-                <button class="btn btn-join-session" title="Join Session" popovertarget="popover-join-session">
-                    <img src="./assets/icons/add.svg">
-                </button>
-                <div popover="auto" id="popover-join-session">
-                    <div class="popover-item btn-join-chat">Join Chat</div>
+        <div class="drawer">
+            <div class="drawer-container">
+                <div class="layout-left layout">
+                    <img src="/assets/logo.svg" alt="logo" width="64" height="64"
+                        style="padding: 8px;box-sizing: border-box;">
+                    <img class="avatar my-avatar">
+                    <div class="layout-left-bottom">
+                        <img src="./assets/icons/logout.svg" class="btn btn-logout" title="Logout">
+                    </div>
+                </div>
+                <div class="layout-middle layout">
+                    <div class="session-list-header">
+                        <div class="session-list-title">Sessions</div>
+                        <button class="btn btn-join-session" title="Join Session" popovertarget="popover-join-session">
+                            <img src="./assets/icons/add.svg">
+                        </button>
+                        <button class="btn btn-close-drawer" title="Close Drawer">
+                            <img src="./assets/icons/close.svg">
+                        </button>
+                        <div popover="auto" id="popover-join-session">
+                            <div class="popover-item btn-join-chat">Join Chat</div>
+                        </div>
+                    </div>
+                    <div class="session-list"></div>
                 </div>
             </div>
-            <div class="session-list"></div>
         </div>
         <div class="layout-right layout">
             <div class="chat-area-header">
-                <div class="session-name">Session Name</div>
+                <img src="/assets/icons/menu.svg" class="btn btn-open-drawer">
+                <span class="session-name">Session Name</span>
             </div>
             <div class="chat-area-content"></div>
             <div class="chat-area-bottom">
@@ -319,7 +408,13 @@
                 <div class="btn-send">Send</div>
             </div>
             <div class="mask">
-                <img src="/assets/logo.svg">&nbsp;Select a session on the left to start chatting
+                <div class="mask-logo">
+                    <img src="/assets/logo.svg">
+                </div>
+                <div class="mask-text">
+                    Start chatting by&nbsp;<span class="btn-open-drawer" style="text-decoration: underline;">the
+                        drawer</span>
+                </div>
             </div>
         </div>
     </div>
@@ -349,28 +444,39 @@
 
     <script src="/assets/script_main.js"></script>
     <script>
-        // 输入框键盘事件处理
-        $('.chat-input').on('keydown', function (e) {
-            // 处理中文输入法状态
-            if (e.isComposing || e.keyCode === 229) {
-                return;
-            }
+        const isMobile = true
+        function slideOutDrawer() {
+            $('.drawer-container').animate({
+                left: '-100%'
+            }, 200);
+            $('.drawer').animate({
+                backgroundColor: 'rgba(0, 0, 0, 0)',
+            }, 200, () => {
+                $('.drawer').hide();
+            })
+            $('.layout-right').removeClass('blured');
+        }
+        function slideInDrawer() {
+            $('.drawer').show();
+            $('.drawer-container').css('left', '-100%');
+            $('.drawer-container').animate({
+                left: '0%'
+            }, 200);
+            $('.drawer').animate({
+                backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            }, 200);
+            $('.layout-right').addClass('blured');
+        }
+        $('.btn-close-drawer').click(() => {
+            slideOutDrawer();
+        })
+        $('.btn-open-drawer').click(() => {
+            slideInDrawer();
+        })
 
-            // Enter发送消息（不按下Ctrl）
-            if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
-                e.preventDefault();
-                sendCurrentMessage();
-            }
-            // Ctrl+Enter换行
-            else if (e.key === 'Enter' && e.ctrlKey) {
-                e.preventDefault();
-                const start = this.selectionStart;
-                const end = this.selectionEnd;
-                const value = $(this).val();
-                $(this).val(value.substring(0, start) + '\n' + value.substring(end));
-                this.selectionStart = this.selectionEnd = start + 1;
-            }
-        });
+        window.addEventListener('load', () => {
+            slideInDrawer();
+        })
     </script>
 </body>
 

@@ -29,8 +29,36 @@ module.exports = {
         dbUserData.findOne({ uid }, (err, userDoc) => {
             if (userDoc) {
                 _(dbUsers, uid, (auth) => {
-                    console.log(userDoc, auth);
+                    // console.log(userDoc, auth);
                     if (auth) {
+                        callback(new User(
+                            auth,
+                            userDoc.nickname,
+                            userDoc.joinedSessions || []
+                        ));
+                    } else {
+                        callback(null);
+                    }
+                });
+            } else {
+                callback(null);
+            }
+        });
+    },
+    getUserByUsername(dbUsers, dbUserData, username, callback = () => { }) {
+        const _ = (db, username, callback = () => { }) => {
+            db.findOne({ username }, (err, userDoc) => {
+                if (userDoc) {
+                    callback(new Auth(userDoc.uid, userDoc.username, userDoc.password, userDoc.join_time));
+                } else {
+                    callback(null);
+                }
+            });
+        }
+        _(dbUsers, username, (auth) => {
+            if (auth) {
+                dbUserData.findOne({ uid: auth.uid }, (err, userDoc) => {
+                    if (userDoc) {
                         callback(new User(
                             auth,
                             userDoc.nickname,
@@ -60,6 +88,11 @@ module.exports = {
                     []
                 ));
             }
+        });
+    },
+    joinSession(db, uid, session) {
+        db.userData.update({ uid }, {
+            $addToSet: { joinedSessions: session.toLowerCase() }
         });
     }
 }
