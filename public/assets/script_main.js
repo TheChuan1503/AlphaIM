@@ -56,7 +56,7 @@ const sessionList = {
             container.append(card);
         });
     },
-    selectSession: function (sessionCard, callback = () => {}) {
+    selectSession: function (sessionCard, callback = () => { }) {
         if (this.selectedSession && this.selectedSession.attr("data-session-name") === sessionCard.attr("data-session-name")) {
             return;
         }
@@ -433,6 +433,24 @@ function requestJoinSession(session) {
     });
 }
 
+
+// 发送当前消息的函数
+function sendCurrentMessage() {
+    const message = $('.chat-input').val() ? $('.chat-input').val() : $('.chat-input').text();
+    if (message.trim() === '' || !curSession) {
+        return;
+    }
+    sender.send(curSession, message);
+    $('.chat-input').val('');
+
+    // 清空当前session的缓存
+    if (curSession) {
+        const sessionKey = `${curSession.type}:${curSession.name}`;
+        const inputKey = `input_${sessionKey}`;
+        sessionInputCache[inputKey] = '';
+    }
+}
+
 window.onload = function () {
     $.getJSON('/api/user', (data) => {
         if (data.success) {
@@ -476,23 +494,6 @@ window.onload = function () {
             sessionInputCache[inputKey] = $(this).val();
         }
     });
-
-    // 发送当前消息的函数
-    function sendCurrentMessage() {
-        const message = $('.chat-input').val() ? $('.chat-input').val() : $('.chat-input').text();
-        if (message.trim() === '' || !curSession) {
-            return;
-        }
-        sender.send(curSession, message);
-        $('.chat-input').val('');
-
-        // 清空当前session的缓存
-        if (curSession) {
-            const sessionKey = `${curSession.type}:${curSession.name}`;
-            const inputKey = `input_${sessionKey}`;
-            sessionInputCache[inputKey] = '';
-        }
-    }
 
     $('.btn-join-chat').click(() => {
         let sessionName = prompt("Enter the chat session name:").trim().toLowerCase();
