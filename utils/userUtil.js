@@ -94,5 +94,16 @@ module.exports = {
         db.userData.update({ uid }, {
             $addToSet: { joinedSessions: session.toLowerCase() }
         });
-    }
+    },
+    updateDisplayName(db, uid, displayName, callback = () => { }) {
+        db.userData.update({ uid }, {
+            $set: { nickname: displayName }
+        }, (err, newDoc) => {
+            if (err) {
+                callback(false);
+            } else {
+                callback(true);
+            }
+        });
+    },
 }

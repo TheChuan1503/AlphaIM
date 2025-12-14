@@ -7,6 +7,7 @@
     <title>AlphaIM</title>
     <script src="./libs/jq.js"></script>
     <script src="./libs/jq-color.js"></script>
+    <link rel="stylesheet" href="./assets/style_main.css">
     <style>
         :root,
         html,
@@ -375,8 +376,12 @@
                 <div class="layout-left layout">
                     <img src="/assets/logo.svg" alt="logo" width="64" height="64"
                         style="padding: 8px;box-sizing: border-box;">
-                    <img class="avatar my-avatar">
+                    <button popovertarget="popover-profile" class="btn-avatar"><img class="avatar my-avatar"></button>
+                    <div popover="auto" id="popover-profile" class="popover">
+                        <div class="popover-item btn-edit-display-name">Edit Display Name</div>
+                    </div>
                     <div class="layout-left-bottom">
+                        <img src="./assets/icons/info.svg" class="btn btn-about" title="About">
                         <img src="./assets/icons/logout.svg" class="btn btn-logout" title="Logout">
                     </div>
                 </div>

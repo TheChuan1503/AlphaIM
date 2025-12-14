@@ -7,6 +7,7 @@ const template = {
     sessionCard: $(".template-session-card .session-card").clone(),
     messageCard: $(".template-message-card .message-card").clone(),
 }
+var profile = {}
 const sessionList = {
     selectedSession: null,
     add: function (name, lastMessage, lastTimestamp = 0) {
@@ -191,9 +192,7 @@ const wsUtil = {
         this.ws = new WebSocket(`ws://${window.location.hostname}:3001`);
         this.ws.onopen = () => {
             console.log("Connected to WebSocket server");
-            // 标记WebSocket已连接
             sender.isConnected = true;
-            // 处理堆积的消息
             sender.processMessageQueue();
         };
         this.ws.onmessage = (event) => {
@@ -211,14 +210,12 @@ const wsUtil = {
                 if (!messageHistory[sessionKey]) {
                     messageHistory[sessionKey] = '';
                 }
-                // 使用Promise.all确保消息按时间戳排序后添加到缓存
                 new Promise((resolve) => {
                     userInfo.get(message.from, (user) => {
                         const messageCard = template.messageCard.clone();
                         messageCard.find(".avatar").attr("src", `./api/get_avatar?name=${user.username}`);
                         messageCard.find(".username-text").text(user.nickname || user.username);
 
-                        // 格式化时间戳
                         const formattedTime = formatTime(message.timestamp);
                         messageCard.find(".message-time").text(formattedTime);
 
@@ -230,7 +227,6 @@ const wsUtil = {
                         });
                     });
                 }).then(({ html, timestamp }) => {
-                    // 解析现有缓存的消息
                     let existingMessages = [];
                     if (messageHistory[sessionKey]) {
                         const tempDiv = $('<div>').html(messageHistory[sessionKey]);
@@ -242,16 +238,10 @@ const wsUtil = {
                         });
                     }
 
-                    // 添加新消息
                     existingMessages.push({ html, timestamp });
-
-                    // 按时间戳排序
                     existingMessages.sort((a, b) => a.timestamp - b.timestamp);
-
-                    // 重新构建缓存
                     messageHistory[sessionKey] = existingMessages.map(m => m.html).join('');
 
-                    // 如果当前显示的是这个会话，滚动到底部
                     if (curSession && `${curSession.type}:${curSession.name}` === sessionKey) {
                         $(".chat-area-content").scrollTop($(".chat-area-content")[0].scrollHeight);
                     }
@@ -263,25 +253,20 @@ const wsUtil = {
 
                 const history = message.history || [];
 
-                // 如果有历史记录，提取最后一条消息来更新sessionList
                 if (history.length > 0) {
                     const lastMessage = history[history.length - 1];
                     userInfo.get(lastMessage.uid, (user) => {
                         const lastMessageText = lastMessage.msg;
                         const lastTimestamp = lastMessage.time;
 
-                        // 更新sessionList中的最后消息和时间戳
                         sessionList.add(sessionKey, lastMessageText, lastTimestamp);
                     });
                 }
 
-                // 只在当前显示的会话中渲染历史记录
                 if (curSession && `${curSession.type}:${curSession.name}` === sessionKey) {
                     $(".chat-area-content").empty();
-                    // 按时间戳升序排序，确保消息按时间顺序显示
                     const sortedHistory = [...history].sort((a, b) => a.time - b.time);
 
-                    // 使用Promise.all确保所有用户信息加载完成后再按顺序添加消息
                     const messagePromises = sortedHistory.map(entry => {
                         return new Promise((resolve) => {
                             userInfo.get(entry.uid, (user) => {
@@ -454,6 +439,8 @@ function sendCurrentMessage() {
 window.onload = function () {
     $.getJSON('/api/user', (data) => {
         if (data.success) {
+            profile = data.user;
+
             $(".my-avatar").attr("src", `/api/get_avatar?name=user:${data.user.username}`);
             const joinedSessions = data.user.joined_sessions || [];
             if (!joinedSessions.includes('chat:public')) {
@@ -482,11 +469,15 @@ window.onload = function () {
         });
     })
 
+    $('.btn-about').click(() => {
+        this.alert("Powered by AlphaIM\n" +
+            "https://github.com/TheChuan1503/AlphaIM");
+    })
+
     $('.btn-send').click(() => {
         sendCurrentMessage();
     });
 
-    // 输入框内容变化时缓存到当前session
     $('.chat-input').on('input', function () {
         if (curSession) {
             const sessionKey = `${curSession.type}:${curSession.name}`;
@@ -508,28 +499,20 @@ window.onload = function () {
         if (sessionName) {
             const fullSessionName = `chat:${sessionName}`;
 
-            // 检查会话是否已存在
             const existingSession = $(`.session-card[data-session-name="${fullSessionName}"]`);
             if (existingSession.length > 0) {
-                // 如果会话已存在，直接选中它
                 sessionList.selectSession(existingSession);
                 return;
             }
-
-            // 如果会话不存在，添加到列表最前面
             sessionList.add(fullSessionName, "", Date.now());
             requestJoinSession({
                 type: 'chat',
                 name: sessionName,
             });
-
-            // 获取聊天记录，并在获取后自动选中该会话
             sender._send({
                 type: 'get_chat_history',
                 session: fullSessionName.toLowerCase()
             });
-
-            // 延迟选中会话，等待聊天记录加载完成
             setTimeout(() => {
                 const newSession = $(`.session-card[data-session-name="${fullSessionName}"]`);
                 if (newSession.length > 0) {
@@ -538,6 +521,22 @@ window.onload = function () {
             }, 500);
         }
     });
+
+    $('.btn-edit-display-name').click(() => {
+        let newName = prompt("Enter your new display name:", profile.nickname).trim();
+        if (newName.length > 32) {
+            alert("Display name cannot be longer than 32 characters");
+            return;
+        }
+        if (newName) {
+            sender._send({
+                type: 'update_display_name',
+                display_name: newName,
+            });
+            // profile.display_name = newName;
+            this.location.reload();
+        }
+    })
 
     wsUtil.init();
     sessionList.add("chat:public", "");

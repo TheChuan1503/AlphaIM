@@ -2,6 +2,8 @@ const Datastore = require('nedb');
 const Auth = require('../modules/Auth');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const G = require('../global');
 if (!userUtil) var userUtil = require('./userUtil');
 require('dotenv').config();
 
@@ -103,7 +105,13 @@ const authUtil = {
             } else {
                 authUtil.getLatestUser(db, (latestUser) => {
                     const uid = latestUser ? latestUser.uid + 1 : 10001;
-                    db.insert({ uid, username: realUsername, password: bcrypt.hashSync(password, 10), join_time: new Date().getTime() }, (err, newUserDoc) => {
+                    db.insert({
+                        uid, username: realUsername,
+                        password: bcrypt.hashSync(password, 10),
+                        join_time: new Date().getTime(),
+                        join_ip: G.cleanIp(req.socket.remoteAddress),
+                        unique_id: crypto.randomUUID()
+                    }, (err, newUserDoc) => {
                         if (err) {
                             callback(false, null, 'Database error');
                         } else {

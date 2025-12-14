@@ -1,6 +1,7 @@
 const WebSocket = require('ws');
 const authUtil = require('./authUtil');
 const userUtil = require('./userUtil');
+const G = require('../global');
 
 module.exports = {
     /**
@@ -30,7 +31,7 @@ module.exports = {
                     ws.close();
                     return;
                 }
-                console.log(`User ${auth.username} connected via WebSocket`);
+                console.log(`User ${auth.username}(UID: ${auth.uid}, ${G.cleanIp(req.socket.remoteAddress)}) connected via WebSocket`);
                 ws.token = token;
                 ws.auth = auth;
                 ws.on('message', (message) => {
@@ -53,9 +54,15 @@ module.exports = {
                         }
                         if (session.type === 'chat') {
                             const timestamp = new Date().getTime();
-                            this.saveChatHistory(db.chatHistory, `chat:${session.name.toLowerCase().trim()}`, auth.uid, timestamp, message.message, () => {
-                                this.sendMsgToChat(db, session.name, auth.uid, message.message, timestamp);
-                            });
+                            this.saveChatHistory(
+                                db.chatHistory,
+                                `chat:${session.name.toLowerCase().trim()}`,
+                                auth.uid, timestamp,
+                                message.message,
+                                G.cleanIp(req.socket.remoteAddress),
+                                () => {
+                                    this.sendMsgToChat(db, session.name, auth.uid, message.message, timestamp);
+                                });
                         }
                     } else if (message.type === 'join_session') {
                         message.session = message.session.replace(/\n/g, ' ');
@@ -71,7 +78,6 @@ module.exports = {
                         if (!session || !session.startsWith('chat:') || session.split(':').length !== 2) {
                             return;
                         }
-                        // 权限校验：必须加入该会话或为public
                         userUtil.getUserByAuth(db.userData, ws.auth, (userData) => {
                             if (!userData) return;
                             const sessionName = session.split(':')[1];
@@ -84,9 +90,17 @@ module.exports = {
                                         session,
                                         history: history || []
                                     }));
-                                } catch (e) {}
+                                } catch (e) { }
                             });
                         });
+                    } else if (message.type === 'update_display_name') {
+                        if (!message.display_name || message.display_name.trim() === '') {
+                            return;
+                        }
+                        if (message.display_name.length > G.MAX_NICK_NAME_LENGTH) {
+                            return;
+                        }
+                        userUtil.updateDisplayName(db, auth.uid, message.display_name, (success) => { });
                     }
                 });
             });
@@ -110,20 +124,29 @@ module.exports = {
             }
         });
     },
-    saveChatHistory(db, session, uid, time, msg, callback = () => {}) {
+    saveChatHistory(db, session, uid, time, msg, ip, callback = () => { }) {
         db.findOne({ session }, (err, doc) => {
             if (doc) {
                 db.update({ session }, { $push: { history: { uid, time, msg } } }, {}, (err2) => {
-                    callback();
+                    db.findOne({ session }, (err3, updatedDoc) => {
+                        if (updatedDoc && updatedDoc.history && (updatedDoc.history.length > G.MAX_MESSAGE_COUNT_PER_SESSION && G.MAX_MESSAGE_COUNT_PER_SESSION > 0)) {
+                            const truncatedHistory = updatedDoc.history.slice(-G.MAX_MESSAGE_COUNT_PER_SESSION);
+                            db.update({ session }, { $set: { history: truncatedHistory } }, {}, (err4) => {
+                                callback();
+                            });
+                        } else {
+                            callback();
+                        }
+                    });
                 });
             } else {
-                db.insert({ session, history: [{ uid, time, msg }] }, (err2) => {
+                db.insert({ session, history: [{ uid, time, msg, ip }] }, (err2) => {
                     callback();
                 });
             }
         });
     },
-    getChatHistory(db, session, callback = () => {}) {
+    getChatHistory(db, session, callback = () => { }) {
         db.findOne({ session }, (err, doc) => {
             if (doc && Array.isArray(doc.history)) {
                 callback(doc.history);
