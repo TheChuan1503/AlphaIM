@@ -3,6 +3,7 @@ var curSession = null;
 const messageHistory = {};
 const userCache = {};
 const sessionInputCache = {}; // 为每个session缓存输入框内容
+const loadingHistory = {}; // 跟踪哪些会话正在加载历史记录
 const template = {
     sessionCard: $(".template-session-card .session-card").clone(),
     messageCard: $(".template-message-card .message-card").clone(),
@@ -110,7 +111,28 @@ const chatArea = {
         if (messageHistory[sessionKey]) {
             $(".chat-area-content").html(messageHistory[sessionKey]);
         } else {
+            // 如果历史记录不存在，先清空聊天区域并请求历史记录
             $(".chat-area-content").empty();
+            // 只有在没有正在加载的情况下才请求历史记录
+            if (!loadingHistory[sessionKey]) {
+                loadingHistory[sessionKey] = true;
+                // 显示加载指示器
+                $(".chat-area-content").html('<div class="loading-history">加载历史消息...</div>');
+                // 请求该会话的历史记录
+                sender._send({
+                    type: 'get_chat_history',
+                    session: sessionKey.toLowerCase()
+                });
+
+                // 设置超时机制，5秒后如果还没收到历史记录，清除加载状态
+                setTimeout(() => {
+                    if (loadingHistory[sessionKey]) {
+                        delete loadingHistory[sessionKey];
+                        $(".chat-area-content").empty();
+                        console.warn(`加载历史记录超时: ${sessionKey}`);
+                    }
+                }, 5000);
+            }
         }
 
         // 恢复该session的输入框内容
@@ -134,7 +156,13 @@ const chatArea = {
             const formattedTime = formatTime(timestamp);
             messageCard.find(".message-time").text(formattedTime);
 
-            messageCard.find(".message-content").text(message);
+            if (typeof message === 'string') {
+                messageCard.find(".message-content").text(message);
+            } else if (message.type === 'text') {
+                messageCard.find(".message-content").text(message.data);
+            } else if (message.type === 'image') {
+                messageCard.find(".message-content").html(`<img src="${message.data}" alt="Image" style="max-width: 200px;">`);
+            }
             messageCard.attr("data-timestamp", timestamp);
 
             // 获取所有现有消息
@@ -198,14 +226,26 @@ const wsUtil = {
         this.ws.onmessage = (event) => {
             const message = JSON.parse(event.data);
             if (message.type === "new_message") {
-                console.log(message);
                 const sessionKey = message.session;
 
                 if (curSession && `${curSession.type}:${curSession.name}` === sessionKey) {
                     chatArea.addMessage(message.from, message.message, message.timestamp);
                 }
 
-                sessionList.add(sessionKey, message.message, message.timestamp);
+                const msgObj = {}
+                if (typeof message.message === 'string') {
+                    msgObj.message = message.message;
+                    msgObj.type = 'text';
+                } else if (message.message.type === 'image') {
+                    msgObj.message = message.message;
+                    msgObj.type = 'image';
+                }
+
+                if (msgObj.type === 'image') {
+                    sessionList.add(sessionKey, '[IMAGE]', message.timestamp);
+                } else if (msgObj.type === 'text') {
+                    sessionList.add(sessionKey, message.message, message.timestamp);
+                }
 
                 if (!messageHistory[sessionKey]) {
                     messageHistory[sessionKey] = '';
@@ -247,17 +287,26 @@ const wsUtil = {
                     }
                 });
             } else if (message.type === 'chat_history') {
-                console.log(message);
                 const sessionKey = message.session;
                 if (!sessionKey || !sessionKey.startsWith('chat:')) return;
+
+                delete loadingHistory[sessionKey];
 
                 const history = message.history || [];
 
                 if (history.length > 0) {
                     const lastMessage = history[history.length - 1];
                     userInfo.get(lastMessage.uid, (user) => {
-                        const lastMessageText = lastMessage.msg;
+                        var lastMessageText = lastMessage.msg;
                         const lastTimestamp = lastMessage.time;
+
+                        if (typeof lastMessageText === 'string') {
+                            lastMessageText = lastMessageText;
+                        } else if (lastMessageText.type == 'text'){
+                            lastMessageText = lastMessageText.data;
+                        } else if (lastMessageText.type === 'image') {
+                            lastMessageText = '[IMAGE]';
+                        }
 
                         sessionList.add(sessionKey, lastMessageText, lastTimestamp);
                     });
@@ -278,7 +327,13 @@ const wsUtil = {
                                 const formattedTime = formatTime(entry.time);
                                 messageCard.find(".message-time").text(formattedTime);
 
-                                messageCard.find(".message-content").text(entry.msg);
+                                if (typeof entry.msg === 'string') {
+                                    messageCard.find(".message-content").text(entry.msg);
+                                } else if (entry.msg.type === 'text') {
+                                    messageCard.find(".message-content").text(entry.msg.data);
+                                } else if (entry.msg.type === 'image') {
+                                    messageCard.find(".message-content").html(`<img src="${entry.msg.data}" alt="Image" style="max-width: 200px;">`);
+                                }
                                 messageCard.attr("data-timestamp", entry.time);
                                 resolve(messageCard[0].outerHTML);
                             });
@@ -312,7 +367,13 @@ const wsUtil = {
                             const formattedTime = formatTime(entry.time);
                             messageCard.find(".message-time").text(formattedTime);
 
-                            messageCard.find(".message-content").text(entry.msg);
+                            if (typeof entry.msg === 'string') {
+                                messageCard.find(".message-content").text(entry.msg);
+                            } else if (entry.msg.type === 'text') {
+                                messageCard.find(".message-content").text(entry.msg.data);
+                            } else if (entry.msg.type === 'image') {
+                                messageCard.find(".message-content").html(`<img src="${entry.msg.data}" alt="Image" style="max-width: 200px;">`);
+                            }
                             messageCard.attr("data-timestamp", entry.time);
                             resolve({
                                 html: messageCard[0].outerHTML,
@@ -436,6 +497,117 @@ function sendCurrentMessage() {
     }
 }
 
+function sendImage(base64) {
+    if (!base64) {
+        return;
+    }
+    sender.send(curSession, {
+        type: 'image',
+        data: 'data:image/jpeg;base64,' + base64,
+    });
+} 
+
+/**
+ * 图片压缩
+ * @param {string} base64 - 图片base64字符串（不带data:image/...;base64,前缀）
+ * @param {number} maxWidth - 最大宽度（像素）
+ * @param {number} maxHeight - 最大高度（像素）
+ * @param {number} maxSizeKB - 最大文件大小（KB）
+ * @param {number} quality - 图片质量 0-1，默认0.8
+ * @param {string} mimeType - 输出图片格式，默认'image/jpeg'
+ * @returns {Promise<string>} 处理后的base64字符串（不带data头）
+ */
+function compressImageBase64(base64, maxWidth, maxHeight, maxSizeKB, quality = 0.8, mimeType = 'image/jpeg') {
+    return new Promise((resolve, reject) => {
+        // 添加data头用于Image对象加载
+        const dataUrl = `data:${mimeType};base64,${base64}`;
+
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+
+        img.onload = function () {
+            // 计算压缩后的尺寸
+            let width = img.width;
+            let height = img.height;
+
+            // 如果图片尺寸超过最大限制，等比例缩放
+            if (width > maxWidth || height > maxHeight) {
+                const scale = Math.min(maxWidth / width, maxHeight / height);
+                width = Math.floor(width * scale);
+                height = Math.floor(height * scale);
+            }
+
+            // 创建Canvas
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+
+            const ctx = canvas.getContext('2d');
+
+            // 设置绘制质量
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+
+            // 绘制图片
+            ctx.drawImage(img, 0, 0, width, height);
+
+            // 压缩函数
+            const compress = (currentQuality) => {
+                return new Promise((resolveCanvas) => {
+                    // 转换为base64
+                    const compressedBase64 = canvas.toDataURL(mimeType, currentQuality);
+
+                    // 移除data头
+                    const pureBase64 = compressedBase64.split(',')[1];
+
+                    // 计算文件大小
+                    const fileSizeKB = (pureBase64.length * 0.75) / 1024;
+
+                    resolveCanvas({
+                        base64: pureBase64,
+                        sizeKB: fileSizeKB,
+                        quality: currentQuality,
+                        width,
+                        height
+                    });
+                });
+            };
+
+            // 递归压缩直到满足大小要求
+            const recursiveCompress = async (currentQuality) => {
+                const result = await compress(currentQuality);
+
+                // 如果已经达到最小质量或满足大小要求
+                if (result.sizeKB <= maxSizeKB || currentQuality <= 0.1) {
+                    return result;
+                }
+
+                // 如果文件过大，降低质量继续压缩
+                if (result.sizeKB > maxSizeKB) {
+                    const newQuality = Math.max(0.1, currentQuality - 0.1);
+                    return recursiveCompress(newQuality);
+                }
+
+                return result;
+            };
+
+            // 开始压缩
+            recursiveCompress(quality)
+                .then((result) => {
+                    console.log(`压缩完成: ${result.width}x${result.height}, 质量: ${result.quality}, 大小: ${result.sizeKB.toFixed(2)}KB`);
+                    resolve(result.base64);
+                })
+                .catch(reject);
+        };
+
+        img.onerror = function (error) {
+            reject(new Error('图片加载失败: ' + error.message));
+        };
+
+        img.src = dataUrl;
+    });
+}
+
 window.onload = function () {
     $.getJSON('/api/user', (data) => {
         if (data.success) {
@@ -449,7 +621,6 @@ window.onload = function () {
             joinedSessions.forEach(session => {
                 if (session.startsWith('chat:')) {
                     sessionList.add(session, "");
-                    // 获取每个会话的历史记录
                     sender._send({
                         type: 'get_chat_history',
                         session: session.toLowerCase()
@@ -537,6 +708,29 @@ window.onload = function () {
             this.location.reload();
         }
     })
+
+    $('.btn-insert-image').click(() => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.click();
+        input.onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onloadend = () => {
+                    const base64String = reader.result.split(',')[1];
+                    compressImageBase64(base64String, 1024, 1024, 64, 0.9).then(compressedBase64 => {
+                        if (this.confirm("Are you sure you want to send this image?")) {
+                            sendImage(compressedBase64);
+                        }
+                    });
+                    // sendCurrentMessage(`![${file.name}](${base64String})`);
+                }
+            }
+        }
+    });
 
     wsUtil.init();
     sessionList.add("chat:public", "");

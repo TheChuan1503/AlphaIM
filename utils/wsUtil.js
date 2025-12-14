@@ -15,6 +15,17 @@ module.exports = {
             return cookies;
         }, {}) || {};
     },
+    estimateFileSizeFromBase64(base64) {
+        // 移除可能存在的换行符和空格
+        const cleanBase64 = base64.replace(/[\r\n\s]/g, '');
+        const length = cleanBase64.length;
+
+        // 计算 padding
+        const padding = (cleanBase64.endsWith('==') ? 2 : (cleanBase64.endsWith('=') ? 1 : 0));
+
+        // 计算公式: 原始字节数 = (base64长度 * 3/4) - padding
+        return Math.floor(length * 0.75) - padding;
+    },
     start(WS_PORT, db) {
         /**
          * @type {WebSocket.Server}
@@ -31,7 +42,7 @@ module.exports = {
                     ws.close();
                     return;
                 }
-                console.log(`User ${auth.username}(UID: ${auth.uid}, ${G.cleanIp(req.socket.remoteAddress)}) connected via WebSocket`);
+                console.log(`User ${auth.username}(UID: ${auth.uid}, ${G.cleanIp(req.socket.remoteAddress)}): ${req.headers['user-agent']}`);
                 ws.token = token;
                 ws.auth = auth;
                 ws.on('message', (message) => {
@@ -46,11 +57,29 @@ module.exports = {
                             type: message.session.split(':')[0],
                             name: message.session.split(':')[1]
                         }
-                        if (!message.message || message.message.trim() === '') {
+                        var msg = message.message || '';
+                        if (!msg) {
                             return;
                         }
-                        if (message.message.length > 1024) {
-                            message.message = message.message.substring(0, 1024);
+                        if (typeof msg === 'string') {
+                            msg = {
+                                type: 'text',
+                                data: msg,
+                            }
+                        }
+                        if (msg.type == 'text') {
+                            if (message.message.trim() === '') {
+                                return;
+                            }
+                            if (message.message.length > 1024) {
+                                message.message = message.message.substring(0, 1024);
+                            }
+                        } else if (msg.type == 'image') {
+                            const fileSize = this.estimateFileSizeFromBase64(msg.data);
+                            console.log(`${auth.username} try sending image ${fileSize} bytes`);
+                            if (fileSize > 64 * 1024) {
+                                return;
+                            }
                         }
                         if (session.type === 'chat') {
                             const timestamp = new Date().getTime();

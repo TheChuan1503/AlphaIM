@@ -8,6 +8,7 @@
     "jsonwebtoken": "^9.0.2",
     "level": "^10.0.0",
     "nedb": "^1.8.0",
+    "probe-image-size": "^7.2.3",
     "svg-captcha": "^1.4.0",
     "ws": "^8.18.3"
   }
