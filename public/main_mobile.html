@@ -7,6 +7,7 @@
     <title>AlphaIM</title>
     <script src="./libs/jq.js"></script>
     <script src="./libs/jq-color.js"></script>
+    <script src="./libs/crypto.js"></script>
     <link rel="stylesheet" href="./assets/style_main.css">
     <style>
         :root,
@@ -45,7 +46,6 @@
         .my-avatar {
             width: 36px;
             height: 36px;
-            margin-left: 14px;
             box-sizing: border-box;
         }
 
@@ -366,10 +366,6 @@
             width: calc(100%);
             height: calc(100% - 48px);
         }
-
-        .chat-area-bottom .input-bar {
-            padding: 4px 8px;
-        }
     </style>
 </head>
 
@@ -432,6 +428,7 @@
             </div>
         </div>
     </div>
+    <div class="status-cover"></div>
     <div style="display: none;" class="template">
         <div class="template-session-card">
             <div class="session-card">
@@ -456,6 +453,7 @@
         </div>
     </div>
 
+    <script src="/assets/script_aesUtil.js"></script>
     <script src="/assets/script_main.js"></script>
     <script>
         const isMobile = true

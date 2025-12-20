@@ -1,4 +1,3 @@
-
 var curSession = null;
 const messageHistory = {};
 const userCache = {};
@@ -31,7 +30,7 @@ const sessionList = {
             sessionCard.find(".session-last-message").text(lastMessage);
             sessionCard.attr("data-timestamp", lastTimestamp);
             sessionCard.attr("data-session-name", name);
-            $(".session-list").prepend(sessionCard); // 改为插入到最前面
+            $(".session-list").prepend(sessionCard);
             sessionCard.click(function () {
                 sessionList.selectSession(sessionCard, () => {
                     if (isMobile) {
@@ -111,20 +110,14 @@ const chatArea = {
         if (messageHistory[sessionKey]) {
             $(".chat-area-content").html(messageHistory[sessionKey]);
         } else {
-            // 如果历史记录不存在，先清空聊天区域并请求历史记录
             $(".chat-area-content").empty();
-            // 只有在没有正在加载的情况下才请求历史记录
             if (!loadingHistory[sessionKey]) {
                 loadingHistory[sessionKey] = true;
-                // 显示加载指示器
-                $(".chat-area-content").html('<div class="loading-history">加载历史消息...</div>');
-                // 请求该会话的历史记录
+                $(".chat-area-content").html('<div class="loading-history">Loading chat history...</div>');
                 sender._send({
                     type: 'get_chat_history',
                     session: sessionKey.toLowerCase()
                 });
-
-                // 设置超时机制，5秒后如果还没收到历史记录，清除加载状态
                 setTimeout(() => {
                     if (loadingHistory[sessionKey]) {
                         delete loadingHistory[sessionKey];
@@ -134,12 +127,8 @@ const chatArea = {
                 }, 5000);
             }
         }
-
-        // 恢复该session的输入框内容
         const inputKey = `input_${sessionKey}`;
         $(".chat-input").val(sessionInputCache[inputKey] || "");
-
-        // 切换到会话时滚动到底部
         setTimeout(() => {
             $(".chat-area-content").scrollTop($(".chat-area-content")[0].scrollHeight);
         }, 100);
@@ -152,7 +141,6 @@ const chatArea = {
             messageCard.find(".avatar").attr("src", `./api/get_avatar?name=user:${user.username}`);
             messageCard.find(".username-text").text(user.nickname || user.username);
 
-            // 格式化时间戳
             const formattedTime = formatTime(timestamp);
             messageCard.find(".message-time").text(formattedTime);
 
@@ -165,7 +153,6 @@ const chatArea = {
             }
             messageCard.attr("data-timestamp", timestamp);
 
-            // 获取所有现有消息
             const existingMessages = [];
             $(".chat-area-content .message-card").each(function () {
                 existingMessages.push({
@@ -174,16 +161,13 @@ const chatArea = {
                 });
             });
 
-            // 添加新消息
             existingMessages.push({
                 element: messageCard,
                 timestamp: timestamp
             });
 
-            // 按时间戳排序
             existingMessages.sort((a, b) => a.timestamp - b.timestamp);
 
-            // 清空聊天区域并重新添加排序后的消息
             $(".chat-area-content").empty();
             existingMessages.forEach(msg => {
                 $(".chat-area-content").append(msg.element);
@@ -216,15 +200,24 @@ function formatTime(stamp) {
 }
 
 const wsUtil = {
-    init: function () {
-        this.ws = new WebSocket(`ws://${window.location.hostname}:3001`);
+    aesKey: null,
+    fullConnected: false,
+    init: function (aesKey, sid) {
+        this.aesKey = aesKey;
+        console.log('[EncryptedSession] Initializing encrypted WebSocket connection');
+        this.ws = new WebSocket(`ws://${window.location.hostname}:{AlphaIM:WS_PORT}?sid=${sid}`);
         this.ws.onopen = () => {
             console.log("Connected to WebSocket server");
+            updateStatusCover('Connected to WebSocket server\nEncrypting communication');
             sender.isConnected = true;
-            sender.processMessageQueue();
         };
         this.ws.onmessage = (event) => {
-            const message = JSON.parse(event.data);
+            const data = aesUtil.decrypt(event.data, aesKey);
+            if (!data) {
+                console.error("Failed to decrypt message:", event.data);
+                return;
+            }
+            const message = JSON.parse(data);
             if (message.type === "new_message") {
                 const sessionKey = message.session;
 
@@ -302,7 +295,7 @@ const wsUtil = {
 
                         if (typeof lastMessageText === 'string') {
                             lastMessageText = lastMessageText;
-                        } else if (lastMessageText.type == 'text'){
+                        } else if (lastMessageText.type == 'text') {
                             lastMessageText = lastMessageText.data;
                         } else if (lastMessageText.type === 'image') {
                             lastMessageText = '[IMAGE]';
@@ -323,7 +316,6 @@ const wsUtil = {
                                 messageCard.find(".avatar").attr("src", `./api/get_avatar?name=user:${user.username}`);
                                 messageCard.find(".username-text").text(user.nickname || user.username);
 
-                                // 格式化时间戳（毫秒级别）
                                 const formattedTime = formatTime(entry.time);
                                 messageCard.find(".message-time").text(formattedTime);
 
@@ -346,16 +338,13 @@ const wsUtil = {
                     });
                 }
 
-                // 缓存历史记录到messageHistory，用于后续快速切换
                 if (history.length === 0) {
                     messageHistory[sessionKey] = '';
                     return;
                 }
 
-                // 按时间戳升序排序，确保缓存的消息按时间顺序
                 const sortedHistory = [...history].sort((a, b) => a.time - b.time);
 
-                // 使用Promise.all确保所有消息按正确顺序缓存
                 const messagePromises = sortedHistory.map(entry => {
                     return new Promise((resolve) => {
                         userInfo.get(entry.uid, (user) => {
@@ -363,7 +352,6 @@ const wsUtil = {
                             messageCard.find(".avatar").attr("src", `./api/get_avatar?name=user:${user.username}`);
                             messageCard.find(".username-text").text(user.nickname || user.username);
 
-                            // 格式化时间戳（毫秒级别）
                             const formattedTime = formatTime(entry.time);
                             messageCard.find(".message-time").text(formattedTime);
 
@@ -384,21 +372,27 @@ const wsUtil = {
                 });
 
                 Promise.all(messagePromises).then(messageData => {
-                    // 按时间戳排序并构建HTML
                     messageData.sort((a, b) => a.timestamp - b.timestamp);
                     messageHistory[sessionKey] = messageData.map(m => m.html).join('');
                 });
+            } else if (message.type === 'connection_success') {
+                wsUtil.fullConnected = true;
+                console.info('[EncryptedSession] Connection success');
+                updateStatusCover('Encrypted communication established');
+                setTimeout(() => {
+                    updateStatusCover('');
+                }, 500);
+                sender.processMessageQueue();
             }
         };
         this.ws.onerror = (error) => {
             console.error("WebSocket error:", error);
-            // 标记WebSocket未连接
             sender.isConnected = false;
         };
         this.ws.onclose = () => {
-            console.log("Disconnected from WebSocket server");
-            // 标记WebSocket未连接
+            console.error("Disconnected from WebSocket server");
             sender.isConnected = false;
+            updateStatusCover('Disconnected from server');
         };
     }
 }
@@ -420,43 +414,38 @@ const sender = {
             message: message
         };
 
-        // 如果WebSocket已连接，直接发送
         if (this.isConnected) {
             this._sendImmediate(messageData);
         } else {
-            // 如果未连接，添加到队列
-            console.log("WebSocket not connected, queuing message:", messageData);
+            // console.log("WebSocket not connected, queuing message:", messageData);
             this.messageQueue.push(messageData);
         }
     },
 
     _send(data) {
-        // 如果WebSocket已连接，直接发送
         if (this.isConnected) {
             this._sendImmediate(data);
         } else {
-            // 如果未连接，添加到队列
-            console.log("WebSocket not connected, queuing message:", data);
+            // console.log("WebSocket not connected, queuing message:", data);
             this.messageQueue.push(data);
         }
     },
 
     _sendImmediate(data) {
         if (!wsUtil.ws || wsUtil.ws.readyState !== WebSocket.OPEN) {
-            console.error("WebSocket is not connected, message queued.");
+            // console.error("WebSocket is not connected, message queued.");
             this.messageQueue.push(data);
             return;
         }
         try {
-            wsUtil.ws.send(JSON.stringify(data));
+            const encryptedData = aesUtil.encrypt(JSON.stringify(data), wsUtil.aesKey);
+            wsUtil.ws.send(encryptedData);
         } catch (error) {
             console.error("Failed to send message:", error);
-            // 如果发送失败，重新加入队列
             this.messageQueue.push(data);
         }
     },
 
-    // 处理堆积的消息队列
     processMessageQueue() {
         if (this.messageQueue.length === 0) {
             return;
@@ -480,7 +469,6 @@ function requestJoinSession(session) {
 }
 
 
-// 发送当前消息的函数
 function sendCurrentMessage() {
     const message = $('.chat-input').val() ? $('.chat-input').val() : $('.chat-input').text();
     if (message.trim() === '' || !curSession) {
@@ -489,7 +477,6 @@ function sendCurrentMessage() {
     sender.send(curSession, message);
     $('.chat-input').val('');
 
-    // 清空当前session的缓存
     if (curSession) {
         const sessionKey = `${curSession.type}:${curSession.name}`;
         const inputKey = `input_${sessionKey}`;
@@ -505,11 +492,11 @@ function sendImage(base64) {
         type: 'image',
         data: 'data:image/jpeg;base64,' + base64,
     });
-} 
+}
 
 /**
  * 图片压缩
- * @param {string} base64 - 图片base64字符串（不带data:image/...;base64,前缀）
+ * @param {string} base64 - 图片base64字符串
  * @param {number} maxWidth - 最大宽度（像素）
  * @param {number} maxHeight - 最大高度（像素）
  * @param {number} maxSizeKB - 最大文件大小（KB）
@@ -519,96 +506,102 @@ function sendImage(base64) {
  */
 function compressImageBase64(base64, maxWidth, maxHeight, maxSizeKB, quality = 0.8, mimeType = 'image/jpeg') {
     return new Promise((resolve, reject) => {
-        // 添加data头用于Image对象加载
         const dataUrl = `data:${mimeType};base64,${base64}`;
 
         const img = new Image();
         img.crossOrigin = 'anonymous';
 
         img.onload = function () {
-            // 计算压缩后的尺寸
             let width = img.width;
             let height = img.height;
+            let originalWidth = img.width;
+            let originalHeight = img.height;
 
-            // 如果图片尺寸超过最大限制，等比例缩放
             if (width > maxWidth || height > maxHeight) {
                 const scale = Math.min(maxWidth / width, maxHeight / height);
                 width = Math.floor(width * scale);
                 height = Math.floor(height * scale);
             }
 
-            // 创建Canvas
-            const canvas = document.createElement('canvas');
-            canvas.width = width;
-            canvas.height = height;
-
-            const ctx = canvas.getContext('2d');
-
-            // 设置绘制质量
-            ctx.imageSmoothingEnabled = true;
-            ctx.imageSmoothingQuality = 'high';
-
-            // 绘制图片
-            ctx.drawImage(img, 0, 0, width, height);
-
-            // 压缩函数
-            const compress = (currentQuality) => {
+            const compressWithDimensions = async (currentWidth, currentHeight, currentQuality) => {
                 return new Promise((resolveCanvas) => {
-                    // 转换为base64
+                    const canvas = document.createElement('canvas');
+                    canvas.width = currentWidth;
+                    canvas.height = currentHeight;
+
+                    const ctx = canvas.getContext('2d');
+                    ctx.imageSmoothingEnabled = true;
+                    ctx.imageSmoothingQuality = 'high';
+                    ctx.drawImage(img, 0, 0, currentWidth, currentHeight);
+
                     const compressedBase64 = canvas.toDataURL(mimeType, currentQuality);
-
-                    // 移除data头
                     const pureBase64 = compressedBase64.split(',')[1];
-
-                    // 计算文件大小
                     const fileSizeKB = (pureBase64.length * 0.75) / 1024;
 
                     resolveCanvas({
                         base64: pureBase64,
                         sizeKB: fileSizeKB,
                         quality: currentQuality,
-                        width,
-                        height
+                        width: currentWidth,
+                        height: currentHeight
                     });
                 });
             };
 
-            // 递归压缩直到满足大小要求
-            const recursiveCompress = async (currentQuality) => {
-                const result = await compress(currentQuality);
+            const recursiveCompress = async (currentWidth, currentHeight, currentQuality) => {
+                const result = await compressWithDimensions(currentWidth, currentHeight, currentQuality);
 
-                // 如果已经达到最小质量或满足大小要求
-                if (result.sizeKB <= maxSizeKB || currentQuality <= 0.1) {
+                // console.log(`Testing: ${currentWidth}x${currentHeight}, Q: ${currentQuality.toFixed(2)}, S: ${result.sizeKB.toFixed(2)}KB`);
+
+                if (result.sizeKB <= maxSizeKB) {
                     return result;
                 }
 
-                // 如果文件过大，降低质量继续压缩
-                if (result.sizeKB > maxSizeKB) {
-                    const newQuality = Math.max(0.1, currentQuality - 0.1);
-                    return recursiveCompress(newQuality);
+                if (currentQuality > 0.1) {
+                    const newQuality = Math.max(0.1, currentQuality - 0.05);
+                    return recursiveCompress(currentWidth, currentHeight, newQuality);
                 }
 
-                return result;
+                if (currentWidth <= 1 || currentHeight <= 1) {
+                    // console.warn('Image compressed to minimum size but still exceeds target size');
+                    return result;
+                }
+
+                const newWidth = Math.max(1, Math.floor(currentWidth * 0.95));
+                const newHeight = Math.max(1, Math.floor(currentHeight * 0.95));
+
+                return recursiveCompress(newWidth, newHeight, quality);
             };
 
-            // 开始压缩
-            recursiveCompress(quality)
+            recursiveCompress(width, height, quality)
                 .then((result) => {
-                    console.log(`压缩完成: ${result.width}x${result.height}, 质量: ${result.quality}, 大小: ${result.sizeKB.toFixed(2)}KB`);
+                    const compressionRatio = ((originalWidth - result.width) / originalWidth * 100).toFixed(1);
+                    console.log(`Compression completed: ${result.width}x${result.height} (${compressionRatio}% smaller), Q: ${result.quality.toFixed(2)}, S: ${result.sizeKB.toFixed(2)}KB`);
                     resolve(result.base64);
                 })
                 .catch(reject);
         };
 
         img.onerror = function (error) {
-            reject(new Error('图片加载失败: ' + error.message));
+            reject(new Error('Image loading failed: ' + error.message));
         };
 
         img.src = dataUrl;
     });
 }
 
+function updateStatusCover(text) {
+    if (!text) {
+        $('.status-cover').hide();
+        return;
+    }
+    $('.status-cover').show();
+    $('.status-cover').text(text);
+}
+
 window.onload = function () {
+    updateStatusCover('Initializing buttons');
+
     $.getJSON('/api/user', (data) => {
         if (data.success) {
             profile = data.user;
@@ -704,7 +697,6 @@ window.onload = function () {
                 type: 'update_display_name',
                 display_name: newName,
             });
-            // profile.display_name = newName;
             this.location.reload();
         }
     })
@@ -721,17 +713,25 @@ window.onload = function () {
                 reader.readAsDataURL(file);
                 reader.onloadend = () => {
                     const base64String = reader.result.split(',')[1];
-                    compressImageBase64(base64String, 1024, 1024, 64, 0.9).then(compressedBase64 => {
+                    compressImageBase64(base64String, { AlphaIM: MAX_IMAGE_WIDTH }, { AlphaIM: MAX_IMAGE_HEIGHT }, { AlphaIM: MAX_IMAGE_SIZE }, { AlphaIM: MAX_IMAGE_QUALITY }).then(compressedBase64 => {
                         if (this.confirm("Are you sure you want to send this image?")) {
                             sendImage(compressedBase64);
                         }
                     });
-                    // sendCurrentMessage(`![${file.name}](${base64String})`);
                 }
             }
         }
     });
 
-    wsUtil.init();
+    updateStatusCover('Establishing encrypted communication')
+    console.log('[EncryptedSession] Requesting new encrypted session');
+    $.getJSON('/api/new_encrypted_session', (data) => {
+        if (data.success) {
+            updateStatusCover('Initializing WebSocket connection');
+            console.info('[EncryptedSession] New encrypted session created:', data.sid);
+            wsUtil.init(data.aes_key, data.sid);
+        }
+    }).fail(() => {
+    });
     sessionList.add("chat:public", "");
 }

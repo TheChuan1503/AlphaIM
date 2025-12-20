@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AlphaIM</title>
     <script src="./libs/jq.js"></script>
+    <script src="./libs/jq-color.js"></script>
+    <script src="./libs/crypto.js"></script>
     <link rel="stylesheet" href="./assets/style_main.css">
     <style>
         .layout-right .mask {
@@ -70,6 +72,9 @@
             </div>
         </div>
     </div>
+    <div class="status-cover">
+        Loading
+    </div>
     <div style="display: none;" class="template">
         <div class="template-session-card">
             <div class="session-card">
@@ -94,6 +99,7 @@
         </div>
     </div>
 
+    <script src="/assets/script_aesUtil.js"></script>
     <script src="/assets/script_main.js"></script>
     <script>
         const isMobile = false

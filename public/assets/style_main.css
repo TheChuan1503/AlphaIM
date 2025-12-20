@@ -28,12 +28,13 @@ body {
 .my-avatar {
     width: 36px;
     height: 36px;
-    margin-left: 14px;
     box-sizing: border-box;
+    margin: 0px;
+    padding: 0px;
 }
 
 .layout-middle {
-    width: 240px;
+    width: clamp(224px, 256px, calc(100vw - 64px));
     left: 64px;
     background-color: #1B1B1B;
 }
@@ -50,7 +51,7 @@ body {
 }
 
 .layout-right {
-    left: 304px;
+    left: clamp(320px, 320px, 100vw);
     right: 0;
     background-color: #111111;
 }
@@ -192,7 +193,7 @@ body {
     left: 0%;
     width: 100%;
     box-sizing: border-box;
-    padding: 4px 16px;
+    padding: 4px 8px;
 }
 
 .input-bar .btn {
@@ -299,9 +300,7 @@ body {
 }
 
 .btn-avatar {
-    background: transparent;
-    border: none;
-    padding: none;
+    margin-left: 14px;
 }
 
 .loading-history {
@@ -315,5 +314,21 @@ body {
 button {
     background: transparent;
     border: none;
-    padding: none;
+    padding: 0;
+    margin: 0;
+}
+
+.status-cover {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    z-index: 1503;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    font-family: 'Consolas', monospace;
+    font-size: 14px;
 }

@@ -2,6 +2,7 @@ const WebSocket = require('ws');
 const authUtil = require('./authUtil');
 const userUtil = require('./userUtil');
 const G = require('../global');
+const aesUtil = require('./aesUtil');
 
 module.exports = {
     /**
@@ -26,12 +27,14 @@ module.exports = {
         // 计算公式: 原始字节数 = (base64长度 * 3/4) - padding
         return Math.floor(length * 0.75) - padding;
     },
-    start(WS_PORT, db) {
+    start(WS_PORT, db, encryptedSessions) {
         /**
          * @type {WebSocket.Server}
          */
         this.wss = new WebSocket.Server({ port: WS_PORT });
         this.wss.on('connection', (ws, req) => {
+            const parsedUrl = require('url').parse(req.url, true);
+            const queryParams = parsedUrl.query;
             const token = this.parseCookies(req.headers.cookie || '')['alphaim_token'];
             if (!token) {
                 ws.close();
@@ -42,7 +45,15 @@ module.exports = {
                     ws.close();
                     return;
                 }
-                console.log(`User ${auth.username}(UID: ${auth.uid}, ${G.cleanIp(req.socket.remoteAddress)}): ${req.headers['user-agent']}`);
+                const sid = queryParams.sid;
+                ws.sid = sid;
+                if (!sid || !encryptedSessions[sid]) {
+                    ws.close();
+                    return;
+                }
+                console.log(`User ${auth.username}(UID: ${auth.uid}, SID: ${sid}, IP: ${G.cleanIp(req.socket.remoteAddress)}): ${req.headers['user-agent']}`);
+                const aesKey = encryptedSessions[sid];
+                ws.aesKey = aesKey;
                 ws.token = token;
                 ws.auth = auth;
                 ws.on('message', (message) => {
@@ -50,7 +61,16 @@ module.exports = {
                         message = message.toString();
                     }
                     if (typeof message === 'string') {
-                        message = JSON.parse(message);
+                        try {
+                            message = JSON.parse(aesUtil.decrypt(message, aesKey));
+                            if (!message) {
+                                ws.close();
+                                return;
+                            }
+                        } catch (error) {
+                            ws.close();
+                            return;
+                        }
                     }
                     if (message.type === 'send_message') {
                         const session = {
@@ -77,7 +97,7 @@ module.exports = {
                         } else if (msg.type == 'image') {
                             const fileSize = this.estimateFileSizeFromBase64(msg.data);
                             console.log(`${auth.username} try sending image ${fileSize} bytes`);
-                            if (fileSize > 64 * 1024) {
+                            if (fileSize > (process.env.MAX_IMAGE_SIZE || 72) * 1024) {
                                 return;
                             }
                         }
@@ -114,11 +134,11 @@ module.exports = {
                             if (!allowed) return;
                             this.getChatHistory(db.chatHistory, session, (history) => {
                                 try {
-                                    ws.send(JSON.stringify({
+                                    this._send(ws, {
                                         type: 'chat_history',
                                         session,
                                         history: history || []
-                                    }));
+                                    });
                                 } catch (e) { }
                             });
                         });
@@ -126,14 +146,27 @@ module.exports = {
                         if (!message.display_name || message.display_name.trim() === '') {
                             return;
                         }
-                        if (message.display_name.length > G.MAX_NICK_NAME_LENGTH) {
+                        if (message.display_name.length > parseInt(process.env.MAX_NICK_NAME_LENGTH || 32)) {
                             return;
                         }
                         userUtil.updateDisplayName(db, auth.uid, message.display_name, (success) => { });
                     }
                 });
+                this._send(ws, {
+                    type: 'connection_success'
+                });
             });
         });
+    },
+    _send(c, json) {
+        try {
+            if (c.readyState === WebSocket.OPEN && c.sid && c.aesKey) {
+                const encryptedJson = aesUtil.encrypt(JSON.stringify(json), c.aesKey);
+                c.send(encryptedJson);
+            }
+        } catch (e) {
+            console.error("WebSocket send error:", e);
+        }
     },
     sendMsgToChat(db, sessionName, fromUid, msgObj, timestamp = new Date().getTime()) {
         sessionName = sessionName.toLowerCase().trim();
@@ -141,13 +174,13 @@ module.exports = {
             if (client.readyState === WebSocket.OPEN) {
                 userUtil.getUserByAuth(db.userData, client.auth, (userData) => {
                     if (userData && (userData.joinedSessions.includes(`chat:${sessionName}`) || sessionName === 'public')) {
-                        client.send(JSON.stringify({
+                        this._send(client, {
                             type: 'new_message',
                             session: `chat:${sessionName}`,
                             from: fromUid,
                             timestamp: timestamp,
                             message: msgObj
-                        }));
+                        });
                     }
                 });
             }
@@ -158,8 +191,9 @@ module.exports = {
             if (doc) {
                 db.update({ session }, { $push: { history: { uid, time, msg } } }, {}, (err2) => {
                     db.findOne({ session }, (err3, updatedDoc) => {
-                        if (updatedDoc && updatedDoc.history && (updatedDoc.history.length > G.MAX_MESSAGE_COUNT_PER_SESSION && G.MAX_MESSAGE_COUNT_PER_SESSION > 0)) {
-                            const truncatedHistory = updatedDoc.history.slice(-G.MAX_MESSAGE_COUNT_PER_SESSION);
+                        const maxMessageCount = parseInt(process.env.MAX_MESSAGE_COUNT_PER_SESSION || 72);
+                        if (updatedDoc && updatedDoc.history && (updatedDoc.history.length > maxMessageCount && maxMessageCount > 0)) {
+                            const truncatedHistory = updatedDoc.history.slice(-maxMessageCount);
                             db.update({ session }, { $set: { history: truncatedHistory } }, {}, (err4) => {
                                 callback();
                             });

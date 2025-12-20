@@ -1,7 +1,4 @@
 const G = {
-    MAX_MESSAGE_COUNT_PER_SESSION: 72,
-    MAX_NICK_NAME_LENGTH: 32,
-
     cleanIp(ip) {
         if (ip.startsWith('::ffff:')) {
             return ip.substring(7);

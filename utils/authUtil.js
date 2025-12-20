@@ -88,7 +88,7 @@ const authUtil = {
      * @param {string} password 密码
      * @param {function} callback 回调函数
      */
-    registerUser: (db, dataDb, username, password, callback = () => { }) => {
+    registerUser: (db, dataDb, username, password, req, callback = () => { }) => {
         username = username.trim();
         if (username.length < 4 || username.length > 16) {
             callback(false, null, 'Username must be between 4 and 16 characters');

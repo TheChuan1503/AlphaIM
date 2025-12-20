@@ -3,6 +3,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
 const path = require('path');
+const fs = require('fs');
 const svgCaptcha = require('svg-captcha');
 const authUtil = require('./utils/authUtil');
 const { createCanvas } = require('canvas');
@@ -10,6 +11,8 @@ require('dotenv').config();
 const WebSocket = require('ws');
 const userUtil = require('./utils/userUtil');
 const wsUtil = require('./utils/wsUtil');
+const aesUtil = require('./utils/aesUtil');
+const { randomUUID } = require('crypto');
 
 const app = express();
 const PORT = process.env.HTTP_PORT || 3000;
@@ -22,15 +25,19 @@ const db = {
     chatHistory: new Datastore({ filename: './db/chat_history.db', autoload: true })
 };
 
-// 存储验证码的会话数据
+// 会话数据
 const captchaSessions = {};
 const httpPublicDirs = ['assets', 'libs'];
+const encryptedSessions = {};
 
 // 中间件
 app.use(bodyParser.json());
 app.use(cookieParser());
 app.use((req, res, next) => {
     if (!(httpPublicDirs.some((dir) => req.path.startsWith(`/${dir}`)))) {
+        return next();
+    }
+    if (req.path === '/assets/script_main.js') {
         return next();
     }
     express.static(path.join(__dirname, 'public'))(req, res, next);
@@ -41,6 +48,26 @@ app.use((req, res, next) => {
         return
     }
     next();
+});
+
+app.get('/assets/script_main.js', (req, res) => {
+    const scriptPath = path.join(__dirname, 'public', 'assets', 'script_main.js');
+
+    fs.readFile(scriptPath, 'utf8', (err, data) => {
+        if (err) {
+            console.error('Error reading script_main.js:', err);
+            return res.status(500).send('Error loading script');
+        }
+        const modifiedScript = data
+            .replace(/\{\s*AlphaIM\s*:\s*WS_PORT\s*\}/g, WS_PORT || 3001)
+            .replace(/\{\s*AlphaIM\s*:\s*MAX_IMAGE_SIZE\s*\}/g, process.env.MAX_IMAGE_SIZE || 72)
+            .replace(/\{\s*AlphaIM\s*:\s*MAX_IMAGE_QUALITY\s*\}/g, process.env.MAX_IMAGE_QUALITY || 0.9)
+            .replace(/\{\s*AlphaIM\s*:\s*MAX_IMAGE_WIDTH\s*\}/g, process.env.MAX_IMAGE_WIDTH || 2048)
+            .replace(/\{\s*AlphaIM\s*:\s*MAX_IMAGE_HEIGHT\s*\}/g, process.env.MAX_IMAGE_HEIGHT || 2048);
+
+        res.setHeader('Content-Type', 'application/javascript');
+        res.send(modifiedScript);
+    });
 });
 
 const authMiddleware = (req, res, next) => {
@@ -72,10 +99,9 @@ app.get('/', (req, res) => {
 
     authUtil.getAuthFromToken(db.users, token, (success, user, error) => {
         if (success && user) {
-            // 根据用户代理判断设备类型
             const userAgent = req.headers['user-agent'] || '';
             const isMobile = /mobile|android|iphone|ipad|phone/i.test(userAgent);
-            
+
             const htmlFile = isMobile ? 'main_mobile.html' : 'main_desktop.html';
             res.sendFile(path.join(__dirname, 'public', htmlFile));
         } else {
@@ -92,19 +118,17 @@ app.get('/login', (req, res) => {
             if (success && user) {
                 return res.redirect('/');
             } else {
-                // 根据用户代理判断设备类型
                 const userAgent = req.headers['user-agent'] || '';
                 const isMobile = /mobile|android|iphone|ipad|phone/i.test(userAgent);
-                
+
                 const htmlFile = isMobile ? 'login_mobile.html' : 'login_desktop.html';
                 res.sendFile(path.join(__dirname, 'public', htmlFile));
             }
         });
     } else {
-        // 根据用户代理判断设备类型
         const userAgent = req.headers['user-agent'] || '';
         const isMobile = /mobile|android|iphone|ipad|phone/i.test(userAgent);
-        
+
         const htmlFile = isMobile ? 'login_mobile.html' : 'login_desktop.html';
         res.sendFile(path.join(__dirname, 'public', htmlFile));
     }
@@ -118,19 +142,17 @@ app.get('/register', (req, res) => {
             if (success && user) {
                 return res.redirect('/');
             } else {
-                // 根据用户代理判断设备类型
                 const userAgent = req.headers['user-agent'] || '';
                 const isMobile = /mobile|android|iphone|ipad|phone/i.test(userAgent);
-                
+
                 const htmlFile = isMobile ? 'register_mobile.html' : 'register_desktop.html';
                 res.sendFile(path.join(__dirname, 'public', htmlFile));
             }
         });
     } else {
-        // 根据用户代理判断设备类型
         const userAgent = req.headers['user-agent'] || '';
         const isMobile = /mobile|android|iphone|ipad|phone/i.test(userAgent);
-        
+
         const htmlFile = isMobile ? 'register_mobile.html' : 'register_desktop.html';
         res.sendFile(path.join(__dirname, 'public', htmlFile));
     }
@@ -214,16 +236,14 @@ app.post('/api/register', (req, res) => {
         return res.status(400).json({ success: false, message: '验证码已过期，请刷新验证码' });
     }
 
-    // 验证码验证（不区分大小写）
     if (captcha.toLowerCase() !== captchaSessions[sessionId].text) {
         return res.status(400).json({ success: false, message: '验证码错误' });
     }
 
-    // 验证通过后删除验证码会话
     delete captchaSessions[sessionId];
     res.clearCookie('captchaSessionId');
 
-    authUtil.registerUser(db.users, db.userData, username, password, (success, user, error) => {
+    authUtil.registerUser(db.users, db.userData, username, password, req, (success, user, error) => {
         if (success && user) {
             res.json({ success: true, message: '注册成功' });
         } else {
@@ -319,7 +339,6 @@ app.get('/api/user_public_info', (req, res) => {
         return res.status(400).json({ success: false, message: 'User not found' });
     }
     userUtil.getUserByUid(db.users, db.userData, uid, (user) => {
-        // console.log(user)
         if (user) {
             res.json({
                 success: true,
@@ -335,9 +354,16 @@ app.get('/api/user_public_info', (req, res) => {
     });
 });
 
+app.get('/api/new_encrypted_session', (req, res) => {
+    const aesKey = aesUtil.genKey();
+    const sid = randomUUID();
+    encryptedSessions[sid] = aesKey;
+    res.json({ success: true, aes_key: aesKey, sid });
+});
+
 app.listen(PORT, () => {
     console.log(`HTTP Server running on port ${PORT}`);
 });
 
-wsUtil.start(WS_PORT, db);
+wsUtil.start(WS_PORT, db, encryptedSessions);
 console.log(`WebSocket Server running on port ${WS_PORT}`);
