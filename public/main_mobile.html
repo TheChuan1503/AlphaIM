@@ -9,6 +9,7 @@
     <script src="./libs/jq-color.js"></script>
     <script src="./libs/crypto.js"></script>
     <link rel="stylesheet" href="./assets/style_main.css">
+    <link rel="stylesheet" href="./assets/styles/style_dialogUtil.css">
     <style>
         :root,
         html,
@@ -239,7 +240,7 @@
         }
 
         .chat-area-content {
-            height: calc(100% - 182px);
+            height: calc(100% - 188px);
             overflow-y: auto;
         }
 
@@ -366,6 +367,10 @@
             width: calc(100%);
             height: calc(100% - 48px);
         }
+
+        .message-image {
+            width: clamp(100px, 240px, calc(100vw - 128px));
+        }
     </style>
 </head>
 
@@ -428,7 +433,10 @@
             </div>
         </div>
     </div>
-    <div class="status-cover"></div>
+    <div class="dialogs"></div>
+    <div class="status-cover">
+        Loading
+    </div>
     <div style="display: none;" class="template">
         <div class="template-session-card">
             <div class="session-card">
@@ -453,7 +461,8 @@
         </div>
     </div>
 
-    <script src="/assets/script_aesUtil.js"></script>
+    <script src="/assets/scripts/script_aesUtil.js"></script>
+    <script src="/assets/scripts/script_dialogUtil.js"></script>
     <script src="/assets/script_main.js"></script>
     <script>
         const isMobile = true
@@ -494,6 +503,11 @@
             $('.drawer-container *').click(function (e) {
                 e.stopPropagation();
             });
+
+            $('[data-session-name="chat:public"]').click(() => {
+                // sessionList.selectSession('chat:public');
+                alert(11)
+            })
         })
     </script>
 </body>

@@ -337,3 +337,8 @@ button {
     font-family: 'Consolas', monospace;
     font-size: 14px;
 }
+
+a, a:hover, a:focus, a:active, a:visited {
+    color: #99E2FC !important;
+    text-decoration: underline !important;
+}

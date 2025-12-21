@@ -152,7 +152,7 @@ const chatArea = {
                 const img = document.createElement('img');
                 img.src = message.data;
                 img.alt = 'Image';
-                img.style.maxWidth = '200px';
+                img.classList.add('message-image')
                 messageCard.find(".message-content").empty().append(img);
             }
             messageCard.attr("data-timestamp", timestamp);
@@ -331,7 +331,7 @@ const wsUtil = {
                                     const img = document.createElement('img');
                                     img.src = entry.msg.data;
                                     img.alt = 'Image';
-                                    img.style.maxWidth = '200px';
+                                    img.classList.add('message-image')
                                     img.removeAttribute('onload');
                                     img.removeAttribute('onerror');
                                     img.removeAttribute('onclick');
@@ -373,7 +373,7 @@ const wsUtil = {
                             } else if (entry.msg.type === 'image') {
                                 const img = document.createElement('img');
                                 img.alt = 'Image';
-                                img.style.maxWidth = '200px';
+                                img.classList.add('message-image')
                                 img.removeAttribute('onload');
                                 img.removeAttribute('onerror');
                                 img.removeAttribute('onclick');
@@ -652,8 +652,21 @@ window.onload = function () {
     })
 
     $('.btn-about').click(() => {
-        this.alert("Powered by AlphaIM\n" +
-            "https://github.com/TheChuan1503/AlphaIM");
+        dialogUtil.new({
+            title: 'About AlphaIM',
+            content: 'Powered by AlphaIM\n' +
+                '<a href="https://github.com/TheChuan1503/AlphaIM" target="_blank">https://github.com/TheChuan1503/AlphaIM</a>',
+            contentIsHTML: true,
+            button: [
+                {
+                    text: 'OK',
+                    onClick: (id) => {
+                        dialogUtil.close(id)
+                    },
+                    style: 'positive',
+                }
+            ],
+        })
     })
 
     $('.btn-send').click(() => {
@@ -732,15 +745,34 @@ window.onload = function () {
                 reader.onloadend = () => {
                     const base64String = reader.result.split(',')[1];
                     compressImageBase64(base64String, { AlphaIM: MAX_IMAGE_WIDTH }, { AlphaIM: MAX_IMAGE_HEIGHT }, { AlphaIM: MAX_IMAGE_SIZE }, { AlphaIM: MAX_IMAGE_QUALITY }).then(compressedBase64 => {
-                        if (this.confirm("Are you sure you want to send this image?")) {
-                            sendImage(compressedBase64);
-                        }
+                        dialogUtil.new({
+                            title: 'Send a Image',
+                            content: `Do you want to send this image?<br><img src="data:image/jpeg;base64,${compressedBase64}" alt="Preview" style="width: 100%; height: auto;">`,
+                            contentIsHTML: true,
+                            button: [
+                                {
+                                    text: 'Cancel',
+                                    onClick: (id) => {
+                                        dialogUtil.close(id)
+                                    },
+                                },
+                                {
+                                    text: 'Send',
+                                    onClick: (id) => {
+                                        sendImage(compressedBase64);
+                                        dialogUtil.close(id)
+                                    },
+                                    style: 'positive',
+                                }
+                            ],
+                        })
                     });
                 }
             }
         }
     });
 
+    // sessionList.add("chat:public", "");
     updateStatusCover('Establishing encrypted communication')
     console.log('[EncryptedSession] Requesting new encrypted session');
     $.getJSON('/api/new_encrypted_session', (data) => {
@@ -751,5 +783,4 @@ window.onload = function () {
         }
     }).fail(() => {
     });
-    sessionList.add("chat:public", "");
 }

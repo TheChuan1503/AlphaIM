@@ -1,4 +1,3 @@
-// 确保CryptoJS可用
 if (typeof CryptoJS === 'undefined') {
     throw new Error('CryptoJS library is required but not loaded. Please include crypto.js before this script.');
 }

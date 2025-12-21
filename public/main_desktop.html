@@ -9,6 +9,7 @@
     <script src="./libs/jq-color.js"></script>
     <script src="./libs/crypto.js"></script>
     <link rel="stylesheet" href="./assets/style_main.css">
+    <link rel="stylesheet" href="./assets/styles/style_dialogUtil.css">
     <style>
         .layout-right .mask {
             position: absolute;
@@ -24,6 +25,10 @@
 
         .session-list-header .btn {
             right: 8px;
+        }
+
+        .message-image {
+            width: clamp(100px, 240px, calc(100vw - 500px));
         }
     </style>
 </head>
@@ -72,6 +77,7 @@
             </div>
         </div>
     </div>
+    <div class="dialogs"></div>
     <div class="status-cover">
         Loading
     </div>
@@ -99,7 +105,8 @@
         </div>
     </div>
 
-    <script src="/assets/script_aesUtil.js"></script>
+    <script src="/assets/scripts/script_aesUtil.js"></script>
+    <script src="/assets/scripts/script_dialogUtil.js"></script>
     <script src="/assets/script_main.js"></script>
     <script>
         const isMobile = false
