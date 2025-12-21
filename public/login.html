@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AlphaIM - Login</title>
+    <script src="/libs/jq.js"></script>
+    <link rel="stylesheet" href="/assets/style_login.css">
+</head>
+
+<body>
+    <div class="container">
+        <div class="form-container">
+            <div class="header">
+                <img src="/assets/logo.svg" alt="" srcset="">
+            </div>
+            <form id="loginForm">
+                <div class="form-group">
+                    <input type="text" id="username" class="form-input" placeholder="Username" required>
+                    <div class="error-message" id="usernameError"></div>
+                </div>
+
+                <div class="form-group">
+                    <input type="password" id="password" class="form-input" placeholder="Password" required>
+                    <div class="error-message" id="passwordError"></div>
+                </div>
+
+                <div class="error-message" id="errorMessage" style="margin-bottom: 16px; text-align: center;"></div>
+
+                <button type="submit" class="submit-btn" id="submitBtn" disabled>
+                    Sign In
+                </button>
+            </form>
+
+            <div class="form-footer">
+                <a href="/register">Sign Up</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="/assets/script_login.js"></script>
+</body>
+
+</html>

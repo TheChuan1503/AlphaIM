@@ -90,8 +90,10 @@ const authUtil = {
      */
     registerUser: (db, dataDb, username, password, req, callback = () => { }) => {
         username = username.trim();
-        if (username.length < 4 || username.length > 16) {
-            callback(false, null, 'Username must be between 4 and 16 characters');
+        const MAX_USER_NAME_LENGTH = parseInt(process.env.MAX_USER_NAME_LENGTH) || 16;
+        const MIN_USER_NAME_LENGTH = parseInt(process.env.MIN_USER_NAME_LENGTH) || 4;
+        if (username.length < MIN_USER_NAME_LENGTH || username.length > MAX_USER_NAME_LENGTH) {
+            callback(false, null, `Username must be between ${MIN_USER_NAME_LENGTH} and ${MAX_USER_NAME_LENGTH} characters`);
             return;
         }
         if (!/^[a-zA-Z0-9_]+$/.test(username)) {

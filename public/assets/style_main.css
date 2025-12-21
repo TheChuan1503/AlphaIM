@@ -137,6 +137,8 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    padding: 0px;
+    margin-top: -4px;
 }
 
 .message-card .message-body .username .username-text {
@@ -147,6 +149,9 @@ body {
     font-size: 0.85em;
     opacity: 0.6;
     margin-left: 8px;
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    white-space: pre-wrap;
 }
 
 .message-card .message-body .message-content {
@@ -193,7 +198,7 @@ body {
     left: 0%;
     width: 100%;
     box-sizing: border-box;
-    padding: 4px 8px;
+    padding: 4px 12px;
 }
 
 .input-bar .btn {
@@ -233,7 +238,7 @@ body {
 }
 
 .chat-area-content {
-    height: calc(100% - 238px);
+    height: calc(100% - 234px);
     overflow-y: auto;
 }
 

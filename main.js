@@ -37,7 +37,7 @@ app.use((req, res, next) => {
     if (!(httpPublicDirs.some((dir) => req.path.startsWith(`/${dir}`)))) {
         return next();
     }
-    if (req.path === '/assets/script_main.js') {
+    if (req.path === '/assets/script_main.js' || req.path === '/assets/script_login.js') {
         return next();
     }
     express.static(path.join(__dirname, 'public'))(req, res, next);
@@ -50,20 +50,38 @@ app.use((req, res, next) => {
     next();
 });
 
-app.get('/assets/script_main.js', (req, res) => {
-    const scriptPath = path.join(__dirname, 'public', 'assets', 'script_main.js');
+const REPLACE_MAP = {
+    AlphaIM: {
+        WS_PORT: WS_PORT || 3001,
+        MAX_IMAGE_SIZE: process.env.MAX_IMAGE_SIZE || 72,
+        MAX_IMAGE_QUALITY: process.env.MAX_IMAGE_QUALITY || 0.9,
+        MAX_IMAGE_WIDTH: process.env.MAX_IMAGE_WIDTH || 2048,
+        MAX_IMAGE_HEIGHT: process.env.MAX_IMAGE_HEIGHT || 2048,
+        MAX_USER_NAME_LENGTH: process.env.MAX_USER_NAME_LENGTH || 16,
+        MIN_USER_NAME_LENGTH: process.env.MIN_USER_NAME_LENGTH || 4,
+        MAX_PASSWORD_LENGTH: process.env.MAX_PASSWORD_LENGTH || 64,
+        MIN_PASSWORD_LENGTH: process.env.MIN_PASSWORD_LENGTH || 6,
+    }
+};
+
+app.get('/assets/:filename', (req, res) => {
+    const filename = req.params.filename;
+    if (!filename.endsWith('.js')) {
+        return res.status(400).send('Invalid file type');
+    }
+
+    const scriptPath = path.join(__dirname, 'public', 'assets', filename);
 
     fs.readFile(scriptPath, 'utf8', (err, data) => {
         if (err) {
-            console.error('Error reading script_main.js:', err);
-            return res.status(500).send('Error loading script');
+            console.error(`Error reading ${filename}:`, err);
+            return res.status(404).send('File not found');
         }
-        const modifiedScript = data
-            .replace(/\{\s*AlphaIM\s*:\s*WS_PORT\s*\}/g, WS_PORT || 3001)
-            .replace(/\{\s*AlphaIM\s*:\s*MAX_IMAGE_SIZE\s*\}/g, process.env.MAX_IMAGE_SIZE || 72)
-            .replace(/\{\s*AlphaIM\s*:\s*MAX_IMAGE_QUALITY\s*\}/g, process.env.MAX_IMAGE_QUALITY || 0.9)
-            .replace(/\{\s*AlphaIM\s*:\s*MAX_IMAGE_WIDTH\s*\}/g, process.env.MAX_IMAGE_WIDTH || 2048)
-            .replace(/\{\s*AlphaIM\s*:\s*MAX_IMAGE_HEIGHT\s*\}/g, process.env.MAX_IMAGE_HEIGHT || 2048);
+
+        let modifiedScript = data;
+        for (const [key, value] of Object.entries(REPLACE_MAP.AlphaIM)) {
+            modifiedScript = modifiedScript.replace(new RegExp(`\\{\\s*AlphaIM\\s*:\\s*${key}\\s*\\}`, 'g'), value);
+        }
 
         res.setHeader('Content-Type', 'application/javascript');
         res.send(modifiedScript);
@@ -118,19 +136,11 @@ app.get('/login', (req, res) => {
             if (success && user) {
                 return res.redirect('/');
             } else {
-                const userAgent = req.headers['user-agent'] || '';
-                const isMobile = /mobile|android|iphone|ipad|phone/i.test(userAgent);
-
-                const htmlFile = isMobile ? 'login_mobile.html' : 'login_desktop.html';
-                res.sendFile(path.join(__dirname, 'public', htmlFile));
+                res.sendFile(path.join(__dirname, 'public', 'login.html'));
             }
         });
     } else {
-        const userAgent = req.headers['user-agent'] || '';
-        const isMobile = /mobile|android|iphone|ipad|phone/i.test(userAgent);
-
-        const htmlFile = isMobile ? 'login_mobile.html' : 'login_desktop.html';
-        res.sendFile(path.join(__dirname, 'public', htmlFile));
+        res.sendFile(path.join(__dirname, 'public', 'login.html'));
     }
 });
 
@@ -217,9 +227,9 @@ app.post('/api/login', (req, res) => {
                 sameSite: 'strict'
             });
 
-            res.json({ success: true, message: '登录成功' });
+            res.json({ success: true, message: 'Login successful' });
         } else {
-            res.status(401).json({ success: false, message: error || '登录失败' });
+            res.status(200).json({ success: false, message: error || 'Login failed' });
         }
     });
 });
@@ -229,15 +239,15 @@ app.post('/api/register', (req, res) => {
     const sessionId = req.cookies.captchaSessionId;
 
     if (!username || !password) {
-        return res.status(400).json({ success: false, message: '用户名和密码不能为空' });
+        return res.status(200).json({ success: false, message: 'Invalid username or password' });
     }
 
     if (!captcha || !sessionId || !captchaSessions[sessionId]) {
-        return res.status(400).json({ success: false, message: '验证码已过期，请刷新验证码' });
+        return res.status(200).json({ success: false, message: 'Invalid captcha' });
     }
 
     if (captcha.toLowerCase() !== captchaSessions[sessionId].text) {
-        return res.status(400).json({ success: false, message: '验证码错误' });
+        return res.status(200).json({ success: false, message: 'Invalid captcha' });
     }
 
     delete captchaSessions[sessionId];
@@ -245,9 +255,9 @@ app.post('/api/register', (req, res) => {
 
     authUtil.registerUser(db.users, db.userData, username, password, req, (success, user, error) => {
         if (success && user) {
-            res.json({ success: true, message: '注册成功' });
+            res.json({ success: true, message: 'Registration successful' });
         } else {
-            res.status(400).json({ success: false, message: error || '注册失败' });
+            res.status(200).json({ success: false, message: error || 'Registration failed' });
         }
     });
 });
@@ -265,14 +275,14 @@ app.get('/api/user', authMiddleware, (req, res) => {
                 }
             });
         } else {
-            res.status(400).json({ success: false, message: '用户不存在' });
+            res.status(200).json({ success: false, message: 'User not found' });
         }
     });
 });
 
 app.post('/api/logout', (req, res) => {
     res.clearCookie(authUtil.COOKIE_NAME);
-    res.json({ success: true, message: '已退出登录' });
+    res.json({ success: true, message: 'Logout' });
 });
 
 app.get('/api/get_avatar', (req, res) => {

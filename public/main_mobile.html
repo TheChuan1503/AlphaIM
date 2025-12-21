@@ -239,7 +239,7 @@
         }
 
         .chat-area-content {
-            height: calc(100% - 200px);
+            height: calc(100% - 182px);
             overflow-y: auto;
         }
 
@@ -479,15 +479,21 @@
             }, 200);
             $('.layout-right').addClass('blured');
         }
-        $('.btn-close-drawer').click(() => {
-            slideOutDrawer();
-        })
-        $('.btn-open-drawer').click(() => {
-            slideInDrawer();
-        })
 
         window.addEventListener('load', () => {
             slideInDrawer();
+            $('.btn-close-drawer').click(() => {
+                slideOutDrawer();
+            })
+            $('.btn-open-drawer').click(() => {
+                slideInDrawer();
+            })
+            $('.drawer-container').click(() => {
+                slideOutDrawer();
+            })
+            $('.drawer-container *').click(function (e) {
+                e.stopPropagation();
+            });
         })
     </script>
 </body>
