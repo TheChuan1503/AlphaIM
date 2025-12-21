@@ -149,7 +149,11 @@ const chatArea = {
             } else if (message.type === 'text') {
                 messageCard.find(".message-content").text(message.data);
             } else if (message.type === 'image') {
-                messageCard.find(".message-content").html(`<img src="${message.data}" alt="Image" style="max-width: 200px;">`);
+                const img = document.createElement('img');
+                img.src = message.data;
+                img.alt = 'Image';
+                img.style.maxWidth = '200px';
+                messageCard.find(".message-content").empty().append(img);
             }
             messageCard.attr("data-timestamp", timestamp);
 
@@ -324,7 +328,14 @@ const wsUtil = {
                                 } else if (entry.msg.type === 'text') {
                                     messageCard.find(".message-content").text(entry.msg.data);
                                 } else if (entry.msg.type === 'image') {
-                                    messageCard.find(".message-content").html(`<img src="${entry.msg.data}" alt="Image" style="max-width: 200px;">`);
+                                    const img = document.createElement('img');
+                                    img.src = entry.msg.data;
+                                    img.alt = 'Image';
+                                    img.style.maxWidth = '200px';
+                                    img.removeAttribute('onload');
+                                    img.removeAttribute('onerror');
+                                    img.removeAttribute('onclick');
+                                    messageCard.find(".message-content").empty().append(img);
                                 }
                                 messageCard.attr("data-timestamp", entry.time);
                                 resolve(messageCard[0].outerHTML);
@@ -360,7 +371,14 @@ const wsUtil = {
                             } else if (entry.msg.type === 'text') {
                                 messageCard.find(".message-content").text(entry.msg.data);
                             } else if (entry.msg.type === 'image') {
-                                messageCard.find(".message-content").html(`<img src="${entry.msg.data}" alt="Image" style="max-width: 200px;">`);
+                                const img = document.createElement('img');
+                                img.alt = 'Image';
+                                img.style.maxWidth = '200px';
+                                img.removeAttribute('onload');
+                                img.removeAttribute('onerror');
+                                img.removeAttribute('onclick');
+                                img.src = entry.msg.data;
+                                messageCard.find(".message-content").empty().append(img);
                             }
                             messageCard.attr("data-timestamp", entry.time);
                             resolve({

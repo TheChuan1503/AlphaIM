@@ -37,7 +37,7 @@ app.use((req, res, next) => {
     if (!(httpPublicDirs.some((dir) => req.path.startsWith(`/${dir}`)))) {
         return next();
     }
-    if (req.path === '/assets/script_main.js' || req.path === '/assets/script_login.js' || req.path === '/assets/script_register.js') {
+    if (req.path === '/assets/script_main.js' || req.path === '/assets/script_login.js' || req.path === '/assets/script_register.js' || req.path.startsWith('/api/uploads/images/')) {
         return next();
     }
     express.static(path.join(__dirname, 'public'))(req, res, next);
@@ -361,6 +361,28 @@ app.get('/api/new_encrypted_session', (req, res) => {
     const sid = randomUUID();
     encryptedSessions[sid] = aesKey;
     res.json({ success: true, aes_key: aesKey, sid });
+});
+
+app.get('/api/uploads/images/:fileName', (req, res) => {
+    const token = req.cookies[authUtil.COOKIE_NAME];
+
+    if (!token) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    authUtil.getAuthFromToken(db.users, token, (success, user, error) => {
+        if (!success) {
+            return res.status(401).json({ success: false, message: 'Unauthorized' });
+        } else {
+            const fileName = req.params.fileName;
+            const filePath = path.join(__dirname, './db/uploads/images', fileName);
+            if (fs.existsSync(filePath)) {
+                res.sendFile(filePath);
+            } else {
+                res.status(404).json({ success: false, message: 'Image not found' });
+            }
+        }
+    });
 });
 
 app.listen(PORT, () => {

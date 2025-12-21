@@ -3,6 +3,7 @@ const authUtil = require('./authUtil');
 const userUtil = require('./userUtil');
 const G = require('../global');
 const aesUtil = require('./aesUtil');
+const fileUploadUtil = require('./fileUploadUtil');
 
 module.exports = {
     /**
@@ -17,14 +18,9 @@ module.exports = {
         }, {}) || {};
     },
     estimateFileSizeFromBase64(base64) {
-        // 移除可能存在的换行符和空格
         const cleanBase64 = base64.replace(/[\r\n\s]/g, '');
         const length = cleanBase64.length;
-
-        // 计算 padding
         const padding = (cleanBase64.endsWith('==') ? 2 : (cleanBase64.endsWith('=') ? 1 : 0));
-
-        // 计算公式: 原始字节数 = (base64长度 * 3/4) - padding
         return Math.floor(length * 0.75) - padding;
     },
     start(WS_PORT, db, encryptedSessions) {
@@ -95,11 +91,28 @@ module.exports = {
                                 message.message = message.message.substring(0, 1024);
                             }
                         } else if (msg.type == 'image') {
+                            const timestamp = new Date().getTime();
                             const fileSize = this.estimateFileSizeFromBase64(msg.data);
-                            console.log(`${auth.username} try sending image ${fileSize} bytes`);
+                            console.log(`${auth.username} try sending image ${fileSize}`);
                             if (fileSize > (process.env.MAX_IMAGE_SIZE || 72) * 1024) {
                                 return;
                             }
+                            fileUploadUtil.uploadImage(msg.data, (success, fileName) => {
+                                if (!success || !fileName) {
+                                    return;
+                                }
+                                msg.data = '/api/uploads/images/' + fileName;
+                                this.saveChatHistory(
+                                    db.chatHistory,
+                                    `chat:${session.name.toLowerCase().trim()}`,
+                                    auth.uid, timestamp,
+                                    msg,
+                                    G.cleanIp(req.socket.remoteAddress),
+                                    () => {
+                                        this.sendMsgToChat(db, session.name, auth.uid, msg, timestamp);
+                                    });
+                            });
+                            return
                         }
                         if (session.type === 'chat') {
                             const timestamp = new Date().getTime();
