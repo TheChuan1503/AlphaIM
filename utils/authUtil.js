@@ -92,6 +92,12 @@ const authUtil = {
         username = username.trim();
         const MAX_USER_NAME_LENGTH = parseInt(process.env.MAX_USER_NAME_LENGTH) || 16;
         const MIN_USER_NAME_LENGTH = parseInt(process.env.MIN_USER_NAME_LENGTH) || 4;
+        var RESERVED_USERNAMES = [];
+        try {
+            RESERVED_USERNAMES = (process.env.RESERVED_USERNAMES || 'admin,guest,system,root,alpha_im,administrator,operator,alphaim').replace(/\s+/g, '').toLowerCase().split(',');
+        } catch (error) {
+            RESERVED_USERNAMES = [];
+        }
         if (username.length < MIN_USER_NAME_LENGTH || username.length > MAX_USER_NAME_LENGTH) {
             callback(false, null, `Username must be between ${MIN_USER_NAME_LENGTH} and ${MAX_USER_NAME_LENGTH} characters`);
             return;
@@ -101,6 +107,10 @@ const authUtil = {
             return;
         }
         const realUsername = username.toLowerCase();
+        if (RESERVED_USERNAMES.includes(realUsername)) {
+            callback(false, null, 'User already exists');
+            return;
+        }
         authUtil.isUserExists(db, realUsername, (exists) => {
             if (exists) {
                 callback(false, null, 'User already exists');

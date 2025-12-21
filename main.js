@@ -37,7 +37,7 @@ app.use((req, res, next) => {
     if (!(httpPublicDirs.some((dir) => req.path.startsWith(`/${dir}`)))) {
         return next();
     }
-    if (req.path === '/assets/script_main.js' || req.path === '/assets/script_login.js') {
+    if (req.path === '/assets/script_main.js' || req.path === '/assets/script_login.js' || req.path === '/assets/script_register.js') {
         return next();
     }
     express.static(path.join(__dirname, 'public'))(req, res, next);
@@ -152,19 +152,11 @@ app.get('/register', (req, res) => {
             if (success && user) {
                 return res.redirect('/');
             } else {
-                const userAgent = req.headers['user-agent'] || '';
-                const isMobile = /mobile|android|iphone|ipad|phone/i.test(userAgent);
-
-                const htmlFile = isMobile ? 'register_mobile.html' : 'register_desktop.html';
-                res.sendFile(path.join(__dirname, 'public', htmlFile));
+                res.sendFile(path.join(__dirname, 'public', 'register.html'));
             }
         });
     } else {
-        const userAgent = req.headers['user-agent'] || '';
-        const isMobile = /mobile|android|iphone|ipad|phone/i.test(userAgent);
-
-        const htmlFile = isMobile ? 'register_mobile.html' : 'register_desktop.html';
-        res.sendFile(path.join(__dirname, 'public', htmlFile));
+        res.sendFile(path.join(__dirname, 'public', 'register.html'));
     }
 });
 
